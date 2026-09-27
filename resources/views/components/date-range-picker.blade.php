@@ -10,10 +10,10 @@
             <option value="{{ $k }}">{{ $label }}</option>
         @endforeach
     </select>
-    <div class="d-flex gap-1 align-items-center" x-show="preset === 'custom'" x-cloak>
+    <div x-show="preset === 'custom'" x-cloak><div class="d-flex gap-1 align-items-center">
         <input type="date" class="form-control form-control-sm" name="{{ $fromName }}" value="{{ $from }}" aria-label="{{ __('From') }}" @if($live) wire:model.live="{{ $fromName }}" @endif>
         <span class="text-body-secondary small">–</span>
         <input type="date" class="form-control form-control-sm" name="{{ $toName }}" value="{{ $to }}" aria-label="{{ __('To') }}" @if($live) wire:model.live="{{ $toName }}" @endif>
-        @unless ($live)<button class="btn btn-sm btn-primary"><i class="bi bi-funnel"></i></button>@endunless
-    </div>
+        @unless ($live)<button class="btn btn-sm btn-primary" aria-label="{{ __('Apply') }}"><i class="bi bi-funnel"></i></button>@endunless
+    </div></div>
 </div>

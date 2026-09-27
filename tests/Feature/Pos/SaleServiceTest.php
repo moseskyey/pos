@@ -80,7 +80,7 @@ it('requires manager approval for discounts above the limit', function () {
     expect(fn () => $this->sales->checkout(cart($lines), [['method' => 'cash', 'amount' => 1000]], $this->cashier, $this->shift, (string) Str::uuid()))
         ->toThrow(ApprovalRequiredException::class);
 
-    $sale = $this->sales->checkout(cart($lines), [['method' => 'cash', 'amount' => 1000]], $this->cashier, $this->shift, (string) Str::uuid(), ['discount' => $this->manager->id]);
+    $sale = $this->sales->checkout(cart($lines), [['method' => 'cash', 'amount' => 1000]], $this->cashier, $this->shift, (string) Str::uuid(), ['discount' => $this->manager->id, 'below_cost' => $this->manager->id]);
     expect($sale->total)->toEqual('750.00')->and(Approval::where('action', 'discount')->exists())->toBeTrue();
 });
 

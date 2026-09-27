@@ -8,6 +8,7 @@ use App\Exceptions\BusinessRuleException;
 use App\Models\Product;
 use App\Models\StockAdjustment;
 use App\Models\User;
+use App\Notifications\SystemAlert;
 use Illuminate\Support\Facades\DB;
 
 class StockAdjustmentService
@@ -47,6 +48,12 @@ class StockAdjustmentService
             // Managers' own adjustments are approved immediately.
             if ($user->can('stock.adjust.approve')) {
                 $this->approve($adjustment, $user);
+            } else {
+                app(AlertService::class)->notify($branchId, 'stock.adjust.approve', new SystemAlert(
+                    __('Adjustment :n awaiting approval', ['n' => $adjustment->number]),
+                    __(':user recorded :reason stock.', ['user' => $user->name, 'reason' => strtolower($reason->label())]),
+                    route('adjustments.show', $adjustment), 'bi-sliders', 'warning',
+                ), $user);
             }
 
             return $adjustment->fresh('items');

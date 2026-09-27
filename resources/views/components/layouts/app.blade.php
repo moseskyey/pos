@@ -149,12 +149,32 @@
 
             {{-- Notifications --}}
             <div class="dropdown">
-                <a href="{{ route('notifications.index') }}" class="nav-icon-btn" aria-label="{{ __('Notifications') }}">
+                <button type="button" class="nav-icon-btn" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" aria-label="{{ __('Notifications') }}">
                     <i class="bi bi-bell"></i>
                     @if ($unread)
                         <span class="dot bg-danger text-white">{{ $unread > 9 ? '9+' : $unread }}</span>
                     @endif
-                </a>
+                </button>
+                <div class="dropdown-menu dropdown-menu-end p-0" style="width: 340px">
+                    <div class="d-flex justify-content-between align-items-center px-3 py-2 border-bottom">
+                        <span class="fw-semibold">{{ __('Notifications') }}</span>
+                        @if ($unread)
+                            <form method="POST" action="{{ route('notifications.read-all') }}">@csrf<button class="btn btn-link btn-sm p-0 text-decoration-none">{{ __('Mark all read') }}</button></form>
+                        @endif
+                    </div>
+                    <div style="max-height: 360px; overflow-y: auto">
+                        @forelse ($user->notifications()->limit(6)->get() as $n)
+                            <a href="{{ route('notifications.open', $n->id) }}" class="dropdown-item d-flex gap-2 py-2 {{ $n->read_at ? '' : 'notification-item unread' }}" style="white-space: normal">
+                                <i class="bi {{ $n->data['icon'] ?? 'bi-bell' }} text-{{ $n->data['color'] ?? 'primary' }} mt-1"></i>
+                                <span class="min-w-0"><span class="d-block small fw-semibold">{{ $n->data['title'] ?? '' }}</span><span class="d-block small text-body-secondary text-truncate">{{ $n->data['message'] ?? '' }}</span>
+                                <span class="d-block text-body-secondary" style="font-size:.7rem">{{ $n->created_at->diffForHumans() }}</span></span>
+                            </a>
+                        @empty
+                            <div class="text-center text-body-secondary small py-4">{{ __('You are all caught up') }}</div>
+                        @endforelse
+                    </div>
+                    <a href="{{ route('notifications.index') }}" class="d-block text-center small py-2 border-top text-decoration-none">{{ __('View all') }}</a>
+                </div>
             </div>
 
             {{-- Language --}}

@@ -429,7 +429,9 @@ class SaleService
             if (! Money::isPositive($line['unit_cost'])) {
                 continue;
             }
-            $netUnit = Money::div($totals['lines'][$key]['net_total'], $line['qty']);
+            // Compare the VAT-exclusive selling price with the (VAT-exclusive) cost.
+            $calc = $totals['lines'][$key];
+            $netUnit = Money::div(Money::sub($calc['net_total'], setting('tax.prices_include_vat', true) ? $calc['tax_amount'] : 0), $line['qty']);
             if (Money::lt($netUnit, $line['unit_cost'])) {
                 if ($policy === 'block') {
                     throw new BusinessRuleException(__(':p cannot be sold below cost.', ['p' => $line['product']->name]));

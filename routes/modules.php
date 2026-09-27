@@ -10,6 +10,7 @@ use App\Http\Controllers\ProductImportController;
 use App\Http\Controllers\PurchaseController;
 use App\Http\Controllers\QuotationController;
 use App\Http\Controllers\ReceiptController;
+use App\Http\Controllers\ReportController;
 use App\Http\Controllers\SaleController;
 use App\Http\Controllers\SaleReturnController;
 use App\Http\Controllers\ShiftController;
@@ -129,3 +130,8 @@ Route::post('/reorder', [PurchaseController::class, 'createFromReorder'])->name(
 Route::get('/expenses/recurring', [ExpenseController::class, 'recurring'])->name('recurring-expenses.index');
 Route::post('/expenses/categories', [ExpenseController::class, 'storeCategory'])->name('expense-categories.store');
 Route::resource('expenses', ExpenseController::class)->except('show');
+
+// ----------------------------------------------------------------- Reports --
+Route::get('/reports', [ReportController::class, 'index'])->name('reports.index');
+Route::get('/reports/{key}', [ReportController::class, 'show'])->name('reports.show');
+Route::post('/reports/{key}/export', [ReportController::class, 'export'])->middleware('throttle:20,1')->name('reports.export');

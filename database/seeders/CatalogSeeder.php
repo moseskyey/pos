@@ -115,6 +115,10 @@ class CatalogSeeder extends Seeder
             if (Product::where('name', $name)->exists()) {
                 continue;
             }
+            if ($tax === 'standard') {
+                // Seed prices are VAT-inclusive; keep a realistic ~20% margin on the VAT-exclusive price.
+                $cost = min($cost, (int) (floor($retail / 1.18 * 0.8 / 50) * 50));
+            }
             $data = [
                 'name' => $name,
                 'category_id' => $cats[$cat]->id,

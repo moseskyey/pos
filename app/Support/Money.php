@@ -158,13 +158,13 @@ class Money
     }
 
     /** Sum a column / callback over a collection or array. */
-    public static function sum(iterable $items, string|callable|null $key = null): string
+    public static function sum(iterable $items, string|\Closure|null $key = null): string
     {
         $sum = BigDecimal::zero();
         foreach ($items as $item) {
             $value = match (true) {
                 $key === null => $item,
-                is_callable($key) => $key($item),
+                $key instanceof \Closure => $key($item),
                 default => data_get($item, $key),
             };
             $sum = $sum->plus(static::of($value));

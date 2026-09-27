@@ -7,6 +7,7 @@ use App\Exceptions\BusinessRuleException;
 use App\Models\Product;
 use App\Models\StockTransfer;
 use App\Models\User;
+use App\Notifications\SystemAlert;
 use App\Support\Money;
 use App\Support\Qty;
 use Illuminate\Support\Facades\DB;
@@ -47,6 +48,12 @@ class StockTransferService
 
             if ($user->can('stock.transfer.approve')) {
                 $this->approve($transfer, $user);
+            } else {
+                app(AlertService::class)->notify($fromBranchId, 'stock.transfer.approve', new SystemAlert(
+                    __('Transfer :n awaiting approval', ['n' => $transfer->number]),
+                    __(':user requested :count items from :from to :to.', ['user' => $user->name, 'count' => count($items), 'from' => $transfer->fromBranch->name, 'to' => $transfer->toBranch->name]),
+                    route('transfers.show', $transfer), 'bi-truck', 'info',
+                ), $user);
             }
 
             return $transfer->fresh('items');
