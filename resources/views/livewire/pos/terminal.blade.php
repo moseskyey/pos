@@ -76,13 +76,20 @@
 
             {{-- Cart ------------------------------------------------------------------}}
             <aside class="pos-cart" aria-label="{{ __('Cart') }}">
+                @if ($quotationId)
+                    <div class="alert alert-info rounded-0 mb-0 py-2 small border-0"><i class="bi bi-file-earmark-text"></i> {{ __('Converting quotation to a sale') }}</div>
+                @endif
                 @if ($completed)
                     <div class="pos-success flex-grow-1 d-flex flex-column justify-content-center">
                         <div class="check"><i class="bi bi-check-lg"></i></div>
                         <div class="text-body-secondary">{{ __('Sale :n completed', ['n' => $completed['number']]) }}</div>
                         <div class="text-body-secondary small mb-3">{{ __('Total') }} {{ money($completed['total']) }}{{ $completed['customer'] ? ' · '.$completed['customer'] : '' }}</div>
                         <div class="text-uppercase small fw-semibold text-body-secondary">{{ __('Change due') }}</div>
-                        <div class="change-amount mb-4">{{ money($completed['change']) }}</div>
+                        <div class="change-amount mb-2">{{ money($completed['change']) }}</div>
+                        @if (! empty($completed['layaway']))
+                            <div class="alert alert-warning mx-3 py-2 small">{{ __('Layaway saved. Balance due: :b', ['b' => money($completed['balance'])]) }}</div>
+                        @endif
+                        <div class="mb-3"></div>
                         <div class="d-grid gap-2 px-3">
                             <button type="button" class="btn btn-outline-primary btn-lg" @click="printReceipt(@js($completed['receipt']))"><i class="bi bi-printer"></i> {{ __('Print receipt') }}</button>
                             @if ($completed['phone'])
@@ -346,7 +353,12 @@
                             <input type="text" class="form-control form-control-sm mt-3" wire:model="note" placeholder="{{ __('Note on receipt (optional)') }}">
                         </div>
                         <div class="modal-footer">
-                            <button type="button" class="btn btn-light" wire:click="$set('modal', null)">{{ __('Back') }} <kbd>Esc</kbd></button>
+                            <button type="button" class="btn btn-light me-auto" wire:click="$set('modal', null)">{{ __('Back') }} <kbd>Esc</kbd></button>
+                            @if ($customerId && $remaining > 0 && $paid > 0 && auth()->user()->can('layaway.manage'))
+                                <button type="button" class="btn btn-outline-warning" wire:click="checkoutLayaway" wire:loading.attr="disabled">
+                                    <i class="bi bi-hourglass-split"></i> {{ __('Save as layaway') }}
+                                </button>
+                            @endif
                             <button type="submit" class="btn btn-success btn-lg px-5" wire:loading.attr="disabled" wire:target="checkout" @disabled($remaining > 0)>
                                 <span wire:loading wire:target="checkout" class="spinner-border"></span>
                                 <i class="bi bi-check2-circle" wire:loading.remove wire:target="checkout"></i> {{ __('Complete sale') }} <kbd class="bg-transparent text-white border-white border-opacity-50">Ctrl+Enter</kbd>

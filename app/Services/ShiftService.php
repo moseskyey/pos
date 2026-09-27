@@ -33,7 +33,7 @@ class ShiftService
             }
             $busy = Shift::withoutGlobalScopes()->where('register_id', $register->id)->where('status', 'open')->lockForUpdate()->first();
             if ($busy) {
-                throw new BusinessRuleException(__(':register is in use by :user.', ['register' => $register->name, 'user' => $busy->user->name]));
+                throw new BusinessRuleException(__(':register is in use by :user.', ['register' => $register->name, 'user' => $busy->user()->value('name')]));
             }
 
             $shift = Shift::withoutGlobalScopes()->create([
@@ -93,11 +93,20 @@ class ShiftService
             $returns = ['count' => (int) $r->count, 'total' => Money::round($r->total), 'cash' => Money::round($r->cash)];
         }
 
+        $customerCash = '0.00';
+        if (DB::getSchemaBuilder()->hasTable('customer_payments')) {
+            $customerCash = Money::round(DB::table('customer_payments')->where('shift_id', $shift->id)->where('method', PaymentMethod::Cash->value)->sum('amount'));
+        }
+        $expenseCash = '0.00';
+        if (DB::getSchemaBuilder()->hasTable('expenses')) {
+            $expenseCash = Money::round(DB::table('expenses')->where('shift_id', $shift->id)->where('paid_from_drawer', true)->whereNull('deleted_at')->sum('amount'));
+        }
+
         $cashIn = Money::round(CashMovement::withoutGlobalScopes()->where('shift_id', $shift->id)->where('type', 'in')->sum('amount'));
         $cashOut = Money::round(CashMovement::withoutGlobalScopes()->where('shift_id', $shift->id)->where('type', 'out')->sum('amount'));
         $cashPayments = $payments[PaymentMethod::Cash->value]['total'] ?? '0.00';
 
-        $expected = Money::sub(Money::add($shift->opening_float, $cashPayments, $cashIn), Money::add($cashOut, $returns['cash']));
+        $expected = Money::sub(Money::add($shift->opening_float, $cashPayments, $customerCash, $cashIn), Money::add($cashOut, $returns['cash'], $expenseCash));
 
         return [
             'sales_count' => (int) $sales->count,
@@ -110,6 +119,8 @@ class ShiftService
             'payments' => $payments->all(),
             'opening_float' => Money::round($shift->opening_float),
             'cash_payments' => $cashPayments,
+            'customer_cash' => $customerCash,
+            'expense_cash' => $expenseCash,
             'cash_in' => $cashIn,
             'cash_out' => $cashOut,
             'expected_cash' => $expected,

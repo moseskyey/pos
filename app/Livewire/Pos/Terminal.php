@@ -20,6 +20,7 @@ use App\Services\LoyaltyService;
 use App\Services\Pos\CartCalculator;
 use App\Services\Pos\PriceResolver;
 use App\Services\ProductService;
+use App\Services\QuotationService;
 use App\Services\ReceiptService;
 use App\Services\SaleService;
 use App\Services\ShiftService;
@@ -56,6 +57,9 @@ class Terminal extends Component
 
     #[Locked]
     public string $idempotencyKey = '';
+
+    #[Locked]
+    public ?int $quotationId = null;
 
     // Catalogue ----------------------------------------------------------------
     public string $search = '';
@@ -98,6 +102,43 @@ class Terminal extends Component
         $this->registerId = Register::query()->where('is_active', true)->orderBy('name')->value('id');
         $this->idempotencyKey = (string) Str::uuid();
         $this->customerId = setting('pos.default_customer_id') ?: null;
+
+        if ($quotation = request()->integer('quotation')) {
+            $this->loadQuotation($quotation);
+        }
+    }
+
+    public function loadQuotation(int $id): void
+    {
+        $quote = Sale::query()->with('items')->find($id);
+        if (! $quote) {
+            return;
+        }
+        try {
+            $cart = app(QuotationService::class)->toCart($quote);
+        } catch (BusinessRuleException $e) {
+            $this->dispatch('toast', message: $e->getMessage(), type: 'error');
+
+            return;
+        }
+        $this->clearCart();
+        $this->quotationId = $quote->id;
+        $this->customerId = $cart['customer_id'];
+        $this->cartDiscountType = $cart['cart_discount_type'];
+        $this->cartDiscountValue = $cart['cart_discount_value'];
+        foreach ($cart['lines'] as $line) {
+            $this->addProduct($line['product_id'], $line['product_unit_id'], $line['qty']);
+            $key = $this->selectedLine;
+            if ($key && $line['price_override']) {
+                $this->cart[$key]['unit_price'] = $line['unit_price'];
+                $this->cart[$key]['price_override'] = true;
+                $this->cart[$key]['tier'] = 'override';
+            }
+            if ($key) {
+                $this->cart[$key]['discount_type'] = $line['discount_type'];
+                $this->cart[$key]['discount_value'] = $line['discount_value'];
+            }
+        }
     }
 
     // ------------------------------------------------------------------ Shift --
@@ -299,6 +340,7 @@ class Terminal extends Component
         $this->note = '';
         $this->approvals = [];
         $this->payments = [];
+        $this->quotationId = null;
         $this->idempotencyKey = (string) Str::uuid();
     }
 
@@ -592,7 +634,13 @@ class Terminal extends Component
         }
     }
 
-    public function checkout(SaleService $sales): void
+    public function checkoutLayaway(SaleService $sales): void
+    {
+        abort_unless(auth()->user()->can('layaway.manage'), 403);
+        $this->checkout($sales, 'layaway');
+    }
+
+    public function checkout(SaleService $sales, string $status = 'completed'): void
     {
         if (! $this->shift) {
             $this->dispatch('toast', message: __('Open a shift before selling.'), type: 'error');
@@ -600,9 +648,12 @@ class Terminal extends Component
             return;
         }
         try {
-            $sale = $sales->checkout($this->cartPayload(), $this->payments, auth()->user(), $this->shift, $this->idempotencyKey, $this->approvals);
+            $sale = $sales->checkout($this->cartPayload(), $this->payments, auth()->user(), $this->shift, $this->idempotencyKey, $this->approvals, $status);
+            if ($this->quotationId && ($quote = Sale::find($this->quotationId))) {
+                app(QuotationService::class)->markConverted($quote, $sale);
+            }
         } catch (ApprovalRequiredException $e) {
-            $this->requestApproval($e->action, $e->permission, $e->getMessage(), 'checkout');
+            $this->requestApproval($e->action, $e->permission, $e->getMessage(), $status === 'layaway' ? 'checkoutLayaway' : 'checkout');
 
             return;
         } catch (BusinessRuleException $e) {
@@ -617,6 +668,8 @@ class Terminal extends Component
             'number' => $sale->number,
             'total' => (string) $sale->total,
             'change' => (string) $sale->change_due,
+            'balance' => (string) $sale->balance_due,
+            'layaway' => $status === 'layaway',
             'customer' => $sale->customer?->name,
             'phone' => $sale->customer?->phone,
             'receipt' => route('receipts.show', $sale),

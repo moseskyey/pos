@@ -42,9 +42,11 @@
     <table>
         <tr><td>{{ __('Opening float') }}</td><td class="right">{{ money($summary['opening_float'], false) }}</td></tr>
         <tr><td>{{ __('Cash sales') }}</td><td class="right">{{ money($summary['cash_payments'], false) }}</td></tr>
+        <tr><td>{{ __('Debt payments (cash)') }}</td><td class="right">{{ money($summary['customer_cash'] ?? 0, false) }}</td></tr>
         <tr><td>{{ __('Cash in') }}</td><td class="right">{{ money($summary['cash_in'], false) }}</td></tr>
         <tr><td>{{ __('Cash out') }}</td><td class="right">-{{ money($summary['cash_out'], false) }}</td></tr>
         <tr><td>{{ __('Cash refunds') }}</td><td class="right">-{{ money($summary['returns']['cash'], false) }}</td></tr>
+        <tr><td>{{ __('Expenses from drawer') }}</td><td class="right">-{{ money($summary['expense_cash'] ?? 0, false) }}</td></tr>
         <tr class="bold"><td>{{ __('Expected cash') }}</td><td class="right">{{ money($summary['expected_cash'], false) }}</td></tr>
         @if ($type === 'z')
             <tr class="bold"><td>{{ __('Counted cash') }}</td><td class="right">{{ money($shift->counted_cash, false) }}</td></tr>

@@ -1,10 +1,15 @@
 <?php
 
 use App\Http\Controllers\BulkPriceController;
+use App\Http\Controllers\CustomerController;
+use App\Http\Controllers\CustomerPaymentController;
 use App\Http\Controllers\LabelController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProductImportController;
+use App\Http\Controllers\QuotationController;
 use App\Http\Controllers\ReceiptController;
+use App\Http\Controllers\SaleController;
+use App\Http\Controllers\SaleReturnController;
 use App\Http\Controllers\ShiftController;
 use App\Http\Controllers\StockAdjustmentController;
 use App\Http\Controllers\StockController;
@@ -74,3 +79,23 @@ Route::get('/receipts/{sale}', [ReceiptController::class, 'show'])->name('receip
 Route::get('/receipts/{sale}/reprint', [ReceiptController::class, 'reprint'])->name('receipts.reprint');
 Route::get('/receipts/{sale}/invoice', [ReceiptController::class, 'invoice'])->name('receipts.invoice');
 Route::get('/receipts/{sale}/delivery-note', [ReceiptController::class, 'deliveryNote'])->name('receipts.delivery-note');
+
+// ---------------------------------------------------- Sales & customers --
+Route::get('/sales', [SaleController::class, 'index'])->name('sales.index');
+Route::get('/sales/{sale}', [SaleController::class, 'show'])->name('sales.show');
+Route::get('/returns', [SaleReturnController::class, 'index'])->name('returns.index');
+Route::get('/returns/create', [SaleReturnController::class, 'create'])->name('returns.create');
+Route::get('/returns/{return}', [SaleReturnController::class, 'show'])->name('returns.show');
+Route::get('/quotations', [QuotationController::class, 'index'])->name('quotations.index');
+Route::get('/quotations/create', [QuotationController::class, 'create'])->name('quotations.create');
+Route::get('/quotations/{quotation}', [QuotationController::class, 'show'])->name('quotations.show');
+Route::get('/quotations/{quotation}/edit', [QuotationController::class, 'edit'])->name('quotations.edit');
+Route::post('/quotations/{quotation}/convert', [QuotationController::class, 'convert'])->name('quotations.convert');
+
+Route::resource('customers', CustomerController::class);
+Route::get('/customers/{customer}/statement', [CustomerController::class, 'statement'])->name('customers.statement');
+Route::post('/customers/{customer}/remind', [CustomerController::class, 'remind'])->name('customers.remind');
+Route::get('/customer-payments', [CustomerPaymentController::class, 'index'])->name('customer-payments.index');
+Route::get('/customer-payments/create', [CustomerPaymentController::class, 'create'])->name('customer-payments.create');
+Route::post('/customer-payments', [CustomerPaymentController::class, 'store'])->name('customer-payments.store');
+Route::get('/customer-payments/{customerPayment}', [CustomerPaymentController::class, 'show'])->name('customer-payments.show');

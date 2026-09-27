@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Services\StockAdjustmentService;
 use App\Services\StockTransferService;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 
 /**
@@ -21,6 +22,7 @@ class InventorySeeder extends Seeder
     {
         $owner = User::where('email', 'owner@dukapos.test')->firstOrFail();
         Auth::login($owner);
+        Carbon::setTestNow(now()->subDays(45)->setTime(8, 0));
         $adjustments = app(StockAdjustmentService::class);
         $products = Product::query()->sellable()->where('track_stock', true)->get();
 
@@ -46,8 +48,7 @@ class InventorySeeder extends Seeder
                     $items[] = ['product_id' => $product->id, 'direction' => 'in', 'quantity' => $qty, 'unit_cost' => $product->cost_price];
                 }
             }
-            $opening = $adjustments->create($branch->id, AdjustmentReason::Opening, $items, $owner, __('Opening stock'));
-            $opening->forceFill(['created_at' => now()->subDays(45), 'approved_at' => now()->subDays(45)])->save();
+            $adjustments->create($branch->id, AdjustmentReason::Opening, $items, $owner, __('Opening stock'));
         }
 
         $kariakoo = Branch::where('code', 'DSM01')->first();
@@ -55,12 +56,14 @@ class InventorySeeder extends Seeder
         $store = User::where('email', 'store@dukapos.test')->first();
 
         // A pending damaged-stock adjustment awaiting manager approval.
+        Carbon::setTestNow(now()->addDays(44));
         Auth::login($store);
         $adjustments->create($kariakoo->id, AdjustmentReason::Damaged, [
             ['product_id' => $products->firstWhere('name', 'Coca-Cola 350ml Bottle')->id, 'direction' => 'out', 'quantity' => 3],
         ], $store, 'Crate dropped during offloading');
 
         // A completed transfer Kariakoo → Mbezi.
+        Carbon::setTestNow(now()->subDays(20));
         Auth::login($owner);
         $transfers = app(StockTransferService::class);
         $transfer = $transfers->request($kariakoo->id, $mbezi->id, [
@@ -71,11 +74,13 @@ class InventorySeeder extends Seeder
         $transfers->receive($transfer, $owner);
 
         // A transfer awaiting approval.
+        Carbon::setTestNow();
         Auth::login($store);
         $transfers->request($mbezi->id, $kariakoo->id, [
             ['product_id' => $products->firstWhere('name', 'Mafuta ya Kupikia Korie 1L')->id, 'quantity' => 6],
         ], $store, 'Kariakoo running low');
 
         Auth::logout();
+        Carbon::setTestNow();
     }
 }
