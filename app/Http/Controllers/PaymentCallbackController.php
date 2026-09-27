@@ -3,9 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Contracts\PaymentGateway;
+use App\Jobs\ProcessPaymentCallback;
 use App\Models\PaymentCallback;
 use App\Models\PaymentIntent;
-use App\Services\PaymentService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -14,7 +14,7 @@ use Illuminate\Http\Request;
  */
 class PaymentCallbackController extends Controller
 {
-    public function __invoke(Request $request, string $gateway, PaymentGateway $driver, PaymentService $payments): JsonResponse
+    public function __invoke(Request $request, string $gateway, PaymentGateway $driver): JsonResponse
     {
         $log = PaymentCallback::create([
             'gateway' => $gateway,
@@ -36,19 +36,26 @@ class PaymentCallbackController extends Controller
             return response()->json(['ok' => false], 401);
         }
 
-        $intent = PaymentIntent::withoutGlobalScopes()
-            ->where(fn ($q) => $q->when($result->reference, fn ($w) => $w->where('reference', $result->reference))
-                ->when($result->providerReference, fn ($w) => $w->orWhere('provider_reference', $result->providerReference)))
-            ->first();
+        $intent = $result->reference || $result->providerReference
+            ? PaymentIntent::withoutGlobalScopes()
+                ->where(fn ($q) => $q->when($result->reference, fn ($w) => $w->where('reference', $result->reference))
+                    ->when($result->providerReference, fn ($w) => $w->orWhere('provider_reference', $result->providerReference)))
+                ->first()
+            : null;
         if (! $intent) {
             $log->update(['result' => 'unknown_reference']);
 
-            return response()->json(['ok' => true]); // acknowledge; nothing to do
+            return response()->json(['ok' => true]); // acknowledge so the provider stops retrying
+        }
+        if ($intent->isTerminal()) {
+            $log->update(['result' => 'duplicate']);
+
+            return response()->json(['ok' => true]);
         }
 
-        $wasTerminal = $intent->isTerminal();
-        $intent = $payments->apply($intent, $result, $result->raw['payload'] ?? []);
-        $log->update(['result' => $wasTerminal ? 'duplicate' : $intent->status]);
+        // Acknowledge fast; verification against the status endpoint happens on the queue.
+        $log->update(['result' => 'queued']);
+        ProcessPaymentCallback::dispatch($log->id, $intent->id, $result->providerReference, $result->status);
 
         return response()->json(['ok' => true]);
     }

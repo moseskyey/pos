@@ -317,7 +317,7 @@
                                                     <input type="text" class="form-control" wire:model="payments.{{ $i }}.reference" placeholder="{{ $method->isMobileMoney() ? __('Transaction ID, e.g. SGH7K2L9QX') : __('Reference') }}" aria-label="{{ __('Reference') }}">
                                                     @if ($method->isMobileMoney() && $supportsPush)
                                                         @php $st = $p['intent_status'] ?? null; @endphp
-                                                        <div class="input-group input-group-sm mt-1" @if (in_array($st, ['pending', 'processing'])) wire:poll.4s="pollStk" @endif>
+                                                        <div class="input-group input-group-sm mt-1" @if (in_array($st, ['pending', 'processing']) || ! empty($p['intent_recheck'])) wire:poll.4s="pollStk" @endif>
                                                             <input type="text" class="form-control @error('payments.'.$i.'.phone') is-invalid @enderror" wire:model="payments.{{ $i }}.phone" placeholder="{{ $this->customer?->displayPhone() ?: '07XX XXX XXX' }}" aria-label="{{ __('Customer phone') }}" @disabled($st === 'completed')>
                                                             @if ($st === 'completed')
                                                                 <span class="input-group-text text-success"><i class="bi bi-check-circle-fill"></i>&nbsp;{{ __('Confirmed') }}</span>
@@ -328,6 +328,9 @@
                                                             @endif
                                                         </div>
                                                         @error('payments.'.$i.'.phone')<div class="text-danger small">{{ $message }}</div>@enderror
+                                                        @if ($st === 'failed' && ! empty($p['intent_recheck']))
+                                                            <div class="small text-warning-emphasis mt-1"><span class="spinner-grow spinner-grow-sm"></span> {{ __('Reported as failed, still checking. If the customer was charged it will confirm here: do not send another push.') }}</div>
+                                                        @endif
                                                     @endif
                                                 @elseif ($method === \App\Enums\PaymentMethod::Credit)
                                                     <span class="small {{ $this->customer ? 'text-body-secondary' : 'text-danger' }}">{{ $this->customer ? __('Limit :l · owes :b', ['l' => money($this->customer->credit_limit), 'b' => money($this->customer->balance)]) : __('Select a customer (F4)') }}</span>

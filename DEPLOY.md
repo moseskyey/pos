@@ -237,9 +237,17 @@ mysql -u dukapos -p dukapos < /tmp/restore/db-dumps/mysql-dukapos.sql
 ## 9. Mobile money & SMS
 
 - **FastLipa**:
-  1. Enter the API key, base URL and webhook secret under **Settings → Payment methods**, and set the gateway to FastLipa.
-  2. Register the callback URL `https://pos.example.co.tz/api/payments/callback/fastlipa` with FastLipa.
-  3. Optionally restrict callbacks to FastLipa's IP addresses with `FASTLIPA_ALLOWED_IPS` in `.env`.
+  1. Under **Settings → Payment methods**, enter your FastLipa secret token as the API key, keep the base URL
+     `https://api.fastlipa.com`, and set the gateway to FastLipa.
+  2. DukaPOS sends its webhook URL (`https://pos.example.co.tz/api/payments/callback/fastlipa`) with every payment
+     request. If your FastLipa dashboard also has a webhook setting, use the same URL there.
+  3. Make sure the queue worker (§6) and the scheduler (§7) are running. Webhooks are acknowledged immediately and
+     then confirmed against FastLipa's status API on the queue, so a forged webhook can never mark a payment paid.
+  4. FastLipa can report a payment as **failed** and then **completed** a few minutes later. DukaPOS keeps
+     re-checking failed payments for `FASTLIPA_RECHECK_FAILED_MINUTES` (default 30). If the money arrives after
+     the cashier gave up, the payment is marked completed and the cashier and branch managers get an alert, so
+     the sale can be completed or the customer refunded.
+  5. Optionally restrict callbacks to FastLipa's IP addresses with `FASTLIPA_ALLOWED_IPS` in `.env`.
 - **Beem SMS**: enter the API key, secret and approved sender ID under **Settings → SMS, alerts & fiscal**.
 
 Callbacks are logged in the `payment_callbacks` table. To replay one: `php artisan payments:replay-callback {id}`.

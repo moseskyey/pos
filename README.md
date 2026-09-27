@@ -125,7 +125,7 @@ To use MySQL 8 / MariaDB instead of SQLite, set `DB_CONNECTION=mysql` and the `D
 - Every report can be exported to Excel or PDF as a queued job.
 
 **Integrations & hardening.**
-- FastLipa mobile money uses two-phase initiation and idempotent references. Callbacks are HMAC-signed and replayable, and a reconciliation sweep checks stuck payments every minute.
+- FastLipa mobile money uses two-phase initiation and idempotent references. Every webhook is confirmed against FastLipa's status API before it counts, and callbacks are logged and replayable. A sweep checks stuck payments every minute and keeps re-checking "failed" ones, because FastLipa can report a payment failed and then completed; late payments alert the cashier and managers.
 - Beem SMS goes through a queued, retrying job.
 - A TRA VFD/EFD `FiscalDevice` extension point.
 - Backups through spatie/laravel-backup: nightly database backups, plus download and delete from the UI.

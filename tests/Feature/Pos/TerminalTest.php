@@ -3,11 +3,13 @@
 use App\Enums\MovementType;
 use App\Livewire\Pos\Terminal;
 use App\Models\Branch;
+use App\Models\PaymentIntent;
 use App\Models\Product;
 use App\Models\Register;
 use App\Models\Sale;
 use App\Models\User;
 use App\Services\StockService;
+use Illuminate\Support\Facades\Http;
 use Livewire\Livewire;
 
 beforeEach(function () {
@@ -87,4 +89,30 @@ it('prints receipts for the cashier', function () {
     $this->get(route('receipts.show', $sale))->assertOk()->assertSee($sale->number);
     $this->get(route('shifts.show', $sale->shift_id))->assertOk();
     $this->get(route('shifts.report', [$sale->shift_id, 'x']))->assertOk()->assertSee('X REPORT');
+});
+
+it('keeps watching a failed push and picks up a late FastLipa confirmation', function () {
+    setting()->set(['payments.gateway' => 'fastlipa', 'payments.fastlipa_api_key' => 'k', 'payments.fastlipa_base_url' => 'https://api.fastlipa.test']);
+    $status = 'FAILED';
+    Http::fake(function ($request) use (&$status) {
+        return str_contains($request->url(), '/create')
+            ? Http::response(['status' => true, 'data' => ['tranID' => 'TX1', 'payment_status' => 'PENDING']])
+            : Http::response(['status' => true, 'data' => ['tranid' => 'TX1', 'payment_status' => $status, 'amount' => 500]]);
+    });
+
+    $pos = Livewire::test(Terminal::class)->set('openingFloat', 0)->call('openShift')
+        ->call('addProduct', $this->product->id)->call('openPayment')
+        ->set('payments.0.method', 'mpesa')->set('payments.0.phone', '0754112233')
+        ->call('sendStkPush', 0)
+        ->assertSet('payments.0.intent_status', 'processing')
+        ->call('checkStkStatus', 0)
+        ->assertSet('payments.0.intent_status', 'failed')
+        ->assertSet('payments.0.intent_recheck', true)
+        ->assertSee(__('Reported as failed, still checking. If the customer was charged it will confirm here: do not send another push.'));
+
+    $status = 'COMPLETED';
+    PaymentIntent::query()->update(['updated_at' => now()->subMinute()]);
+    $pos->call('pollStk')->assertSet('payments.0.intent_status', 'completed')
+        ->call('checkout');
+    expect(Sale::first()->payments->first()->gateway_reference)->toBe('TX1');
 });
