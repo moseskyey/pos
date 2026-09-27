@@ -105,9 +105,12 @@
                         <div class="d-grid gap-2 px-3">
                             <button type="button" class="btn btn-outline-primary btn-lg" @click="printReceipt(@js($completed['receipt']), @js($completed['escpos'] ?? null))"><i class="bi bi-printer"></i> {{ __('Print receipt') }}</button>
                             <div class="d-flex gap-2">
-                                <a href="{{ $completed['whatsapp'] ?? '#' }}" target="_blank" rel="noopener" class="btn btn-outline-success flex-fill"><i class="bi bi-whatsapp"></i> WhatsApp</a>
+                                @if (! empty($completed['whatsapp']))<a href="{{ $completed['whatsapp'] }}" target="_blank" rel="noopener" class="btn btn-outline-success flex-fill"><i class="bi bi-whatsapp"></i> WhatsApp</a>@endif
                                 @if ($completed['phone'])
                                     <button type="button" class="btn btn-outline-secondary flex-fill" wire:click="smsReceipt"><i class="bi bi-chat-dots"></i> {{ __('SMS receipt') }}</button>
+                                @endif
+                                @if (! empty($completed['email']) && feature('email_documents'))
+                                    <button type="button" class="btn btn-outline-secondary flex-fill" wire:click="emailReceipt" wire:loading.attr="disabled"><i class="bi bi-envelope"></i> {{ __('Email') }}</button>
                                 @endif
                             </div>
                             <button type="button" class="btn btn-success btn-lg" wire:click="newSale" x-ref="newSale"><i class="bi bi-plus-lg"></i> {{ __('New sale') }} <kbd class="ms-1">Enter</kbd></button>
@@ -386,7 +389,7 @@
                         </div>
                         <div class="modal-footer">
                             <button type="button" class="btn btn-light me-auto" wire:click="$set('modal', null)">{{ __('Back') }} <kbd>Esc</kbd></button>
-                            @if ($customerId && $remaining > 0 && $paid > 0 && auth()->user()->can('layaway.manage'))
+                            @if ($customerId && $remaining > 0 && $paid > 0 && feature('layaway') && auth()->user()->can('layaway.manage'))
                                 <button type="button" class="btn btn-outline-warning" wire:click="checkoutLayaway" wire:loading.attr="disabled">
                                     <i class="bi bi-hourglass-split"></i> {{ __('Save as layaway') }}
                                 </button>

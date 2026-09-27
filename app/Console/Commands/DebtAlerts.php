@@ -16,7 +16,7 @@ class DebtAlerts extends Command
 
     protected $signature = 'dukapos:debt-alerts';
 
-    protected $description = 'Notify managers about customer debts overdue by more than 30 days';
+    protected $description = 'Notify managers about customer debts past their due date';
 
     public function handle(CustomerStatementService $statements, AlertService $alerts): int
     {
@@ -25,7 +25,7 @@ class DebtAlerts extends Command
         }
 
         $overdue = Customer::query()->where('balance', '>', 0)->get()
-            ->map(fn ($c) => ['customer' => $c, 'overdue' => Money::add(...array_values(array_intersect_key($statements->aging($c), array_flip(['31_60', '61_90', 'over_90']))))])
+            ->map(fn ($c) => ['customer' => $c, 'overdue' => $statements->aging($c)['overdue']])
             ->filter(fn ($row) => Money::isPositive($row['overdue']));
 
         if ($overdue->isNotEmpty()) {

@@ -40,6 +40,37 @@
                         </x-card>
                         @break
 
+                    @case('features')
+                        <x-card :title="__('Quick setup by business type')" icon="bi-magic" :subtitle="__('Switches on the modules that suit your kind of shop. You can still change each one below.')">
+                            <div class="row g-2">
+                                @foreach ($presets as $key => $preset)
+                                    <div class="col-6 col-md-4 col-xl-3">
+                                        <button type="submit" form="preset-{{ $key }}" class="btn w-100 h-100 py-3 {{ $s['features.business_type'] === $key ? 'btn-primary' : 'btn-outline-secondary' }}"
+                                                @if ($s['features.business_type'] === $key) aria-pressed="true" @endif>
+                                            <i class="bi {{ $preset['icon'] }} d-block fs-4 mb-1"></i>
+                                            <span class="small fw-semibold">{{ __($preset['label']) }}</span>
+                                        </button>
+                                    </div>
+                                @endforeach
+                            </div>
+                        </x-card>
+                        <x-card :title="__('Modules')" icon="bi-toggles" class="mt-4" :subtitle="__('Switched-off modules disappear from menus and screens. Existing records are kept.')">
+                            <div class="row">
+                                @foreach ($features as $key => $feature)
+                                    @php $settingKey = \App\Support\Features::settingKey($key); @endphp
+                                    <div class="col-md-6">
+                                        <div class="d-flex gap-3 align-items-start border rounded-3 p-3 mb-3">
+                                            <span class="feature-icon bg-primary-soft text-primary" aria-hidden="true"><i class="bi {{ $feature['icon'] }}"></i></span>
+                                            <div class="flex-grow-1">
+                                                <x-toggle :name="$f($settingKey)" :label="__($feature['label'])" :checked="$s[$settingKey] ?? true" :help="__($feature['description'])" class="mb-0" />
+                                            </div>
+                                        </div>
+                                    </div>
+                                @endforeach
+                            </div>
+                        </x-card>
+                        @break
+
                     @case('currency')
                         <x-card :title="__('Currency & tax')" icon="bi-currency-exchange">
                             <div class="row">
@@ -88,9 +119,16 @@
                                 <div class="col-md-6"><x-input :name="$f('inventory.expiry_alert_days')" type="number" :label="__('Expiry alert window')" :value="$s['inventory.expiry_alert_days']" :suffix="__('days')" /></div>
                             </div>
                         </x-card>
+                        @if (feature('credit_terms'))
+                            <x-card :title="__('Credit terms')" icon="bi-calendar-check" class="mt-4" :subtitle="__('Credit sales are due this many days after the sale, unless the customer has their own terms.')">
+                                <div class="row">
+                                    <div class="col-md-6"><x-input :name="$f('credit.default_days')" type="number" min="0" max="365" :label="__('Default payment terms')" :value="$s['credit.default_days']" :suffix="__('days')" /></div>
+                                </div>
+                            </x-card>
+                        @endif
                         <x-card :title="__('Loyalty points')" icon="bi-gift" class="mt-4">
                             <div class="row">
-                                <div class="col-12"><x-toggle :name="$f('loyalty.enabled')" :label="__('Enable loyalty points')" :checked="$s['loyalty.enabled']" /></div>
+                                <div class="col-12"><p class="small text-muted"><i class="bi bi-toggles"></i> {{ $s['loyalty.enabled'] ? __('Loyalty points are on.') : __('Loyalty points are off.') }} <a href="{{ route('settings.edit', 'features') }}">{{ __('Change in Features') }}</a></p></div>
                                 <div class="col-md-6"><x-input :name="$f('loyalty.earn_per_amount')" type="number" :label="__('Earn 1 point per')" :value="$s['loyalty.earn_per_amount']" prefix="TSh" /></div>
                                 <div class="col-md-6"><x-input :name="$f('loyalty.point_value')" type="number" step="0.01" :label="__('Value of 1 point when redeemed')" :value="$s['loyalty.point_value']" prefix="TSh" /></div>
                             </div>
@@ -163,6 +201,14 @@
 
                 <x-form-actions :cancel="route('dashboard')" :label="__('Save settings')" />
             </form>
+            @if ($group === 'features')
+                @foreach ($presets as $key => $preset)
+                    <form method="POST" action="{{ route('settings.preset') }}" id="preset-{{ $key }}" class="d-none"
+                          onsubmit="return confirm(@js(__('Apply the :type setup? Module switches below will change.', ['type' => __($preset['label'])])))">
+                        @csrf <input type="hidden" name="preset" value="{{ $key }}">
+                    </form>
+                @endforeach
+            @endif
         </div>
     </div>
 </x-layouts.app>

@@ -97,12 +97,16 @@ database user must be allowed to create one database per business (see [DEPLOY.m
 - Manager PIN overrides.
 - An activity log records every sensitive action.
 - A settings module, dark mode, and an English/Kiswahili switcher.
+- **Feature switches per business** (Settings → Features): quotations, layaway, credit terms, loyalty, variants,
+  batches & expiry, weighed items, transfers, stock takes, expenses, WhatsApp sharing and email documents. Switched-off
+  modules disappear from menus and screens, and their pages return 404. One-click presets set them up for a
+  supermarket, pharmacy, hardware shop, boutique, electronics shop, cosmetics shop or wholesaler.
 
 **Catalog.**
 - Categories (two levels), brands, and units with conversions (carton ↔ piece).
 - Retail and wholesale prices, with a wholesale price applied from a set quantity.
 - Multiple barcodes per product, EAN-13 generation, scale (weighed) barcodes, and variants (size/colour).
-- Price history, bulk price updates, Excel import/export with preview, and barcode label printing.
+- Price history, bulk price updates, Excel import/export with preview and a downloadable error report, and barcode label printing.
 
 **Inventory.**
 - An append-only stock ledger and per-branch stock levels.
@@ -133,10 +137,13 @@ database user must be allowed to create one database per business (see [DEPLOY.m
 
 **Sales & customers.**
 - Sales list and detail, same-day voids, and returns/refunds with restock or damaged handling.
-- Quotations that convert to sales in one click.
+- Quotations that convert to sales in one click, and can be emailed to the customer as a PDF.
+- Invoices and receipts can be emailed as a PDF from the sale page or the POS success screen.
 - Layaway with deposits.
 - Customer accounts:
   - credit ledger (deni), with FIFO payment allocation
+  - payment terms per customer (or a business default); every credit sale gets a due date, and aging, statements
+    and overdue alerts count days past the due date
   - statements as PDF
   - SMS reminders
   - loyalty points

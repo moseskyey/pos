@@ -16,6 +16,11 @@ class ExpiryReport extends Report
         return 'expiry';
     }
 
+    public function feature(): ?string
+    {
+        return 'batches';
+    }
+
     public function title(): string
     {
         return __('Expiry report');

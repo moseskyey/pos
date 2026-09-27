@@ -13,6 +13,11 @@
                 <span><i class="bi bi-calendar3"></i> {{ format_date($sale->created_at, true) }}</span>
                 <span><i class="bi bi-shop"></i> {{ $sale->branch->name }}{{ $sale->register ? ' · '.$sale->register->name : '' }}</span>
                 <span><i class="bi bi-person-badge"></i> {{ $sale->cashier?->name }}</span>
+                @if ($sale->due_date && (float) $sale->balance_due > 0)
+                    <span class="badge {{ $sale->isOverdue() ? 'text-bg-danger-soft' : 'text-bg-warning-soft' }}">
+                        <i class="bi bi-calendar-check"></i> {{ $sale->isOverdue() ? __('Overdue since :d', ['d' => format_date($sale->due_date)]) : __('Due :d', ['d' => format_date($sale->due_date)]) }}
+                    </span>
+                @endif
                 @if ($sale->synced_at)
                     <span class="badge text-bg-info-soft"><i class="bi bi-wifi-off"></i> {{ __('Offline sale · synced :t', ['t' => format_date($sale->synced_at, true)]) }}</span>
                 @endif
@@ -24,7 +29,7 @@
                 </div>
             @endif
         </div>
-        <div class="page-actions"><livewire:sales.sale-actions :sale="$sale" /></div>
+        <div class="page-actions"><x-email-document :sale="$sale" /><livewire:sales.sale-actions :sale="$sale" /></div>
     </div>
 
     @if ($sale->status->value === 'voided')

@@ -231,6 +231,9 @@ class SaleService
                 'tendered' => $tendered,
                 'change_due' => $change,
                 'balance_due' => Money::add(Money::sub($totals['total'], $paid), $creditAmount),
+                'due_date' => $customer && Money::isPositive($creditAmount)
+                    ? Carbon::parse($this->offline['sold_at'] ?? now())->addDays($customer->creditDays())->toDateString()
+                    : null,
                 'cart_discount_type' => $cart['cart_discount_type'] ?? null,
                 'cart_discount_value' => $cart['cart_discount_value'] ?? null,
                 'note' => $cart['note'] ?? null,
@@ -293,7 +296,7 @@ class SaleService
             }
 
             if ($customer && Money::isPositive($creditAmount)) {
-                $this->ledger->post($customer, 'sale', $creditAmount, 0, $sale, __('Credit sale :n', ['n' => $sale->number]), dueDate: now()->addDays(30)->toDateString());
+                $this->ledger->post($customer, 'sale', $creditAmount, 0, $sale, __('Credit sale :n', ['n' => $sale->number]), dueDate: $sale->due_date?->toDateString());
             }
             if ($customer && Money::isPositive($storeCreditAmount)) {
                 $this->ledger->post($customer, 'store_credit_used', $storeCreditAmount, 0, $sale, __('Used on :n', ['n' => $sale->number]), 'store_credit');

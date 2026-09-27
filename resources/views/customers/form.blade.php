@@ -20,6 +20,10 @@
             <div class="col-lg-4">
                 <x-card :title="__('Credit')" icon="bi-journal-text">
                     <x-input name="credit_limit" :disabled="! auth()->user()->can('customers.credit')" type="number" min="0" step="1000" :label="__('Credit limit')" :value="(float) $customer->credit_limit" prefix="TSh" :help="__('Maximum debt allowed. 0 = no credit without manager approval.')" />
+                    @if (feature('credit_terms'))
+                        <x-input name="credit_days" :disabled="! auth()->user()->can('customers.credit')" type="number" min="0" max="365" :label="__('Payment terms')" :value="$customer->credit_days" :suffix="__('days')"
+                                 :placeholder="(string) setting('credit.default_days', 30)" :help="__('Leave empty to use the default of :d days.', ['d' => setting('credit.default_days', 30)])" />
+                    @endif
                     @unless ($editing)
                         <x-input name="opening_balance" :disabled="! auth()->user()->can('customers.credit')" type="number" min="0" :label="__('Opening balance (existing debt)')" prefix="TSh" class="mb-0" />
                     @endunless

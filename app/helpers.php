@@ -4,6 +4,7 @@ use App\Models\Branch;
 use App\Models\Platform\Tenant;
 use App\Services\SettingsService;
 use App\Support\BranchContext;
+use App\Support\Features;
 use App\Support\Money;
 use App\Support\PlatformSettings;
 use App\Support\Qty;
@@ -16,6 +17,14 @@ if (! function_exists('setting')) {
         $service = app(SettingsService::class);
 
         return $key === null ? $service : $service->get($key, $default);
+    }
+}
+
+if (! function_exists('feature')) {
+    /** Whether an optional module is switched on for this business (Settings → Features). */
+    function feature(string $feature): bool
+    {
+        return Features::enabled($feature);
     }
 }
 

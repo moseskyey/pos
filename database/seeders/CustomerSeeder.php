@@ -27,12 +27,14 @@ class CustomerSeeder extends Seeder
             ['Peter Mushi', '255762345678', 'retail', 25000, 0, 'Mikocheni'],
             ['Grace Nyirenda', '255717654321', 'retail', 0, 0, 'Kariakoo'],
         ];
+        // Wholesale accounts get their own payment terms; others use the business default.
+        $terms = ['Mama Neema Duka' => 14, 'Hoteli ya Amani' => 45, 'Shule ya Msingi Upendo' => 60];
         foreach ($customers as [$name, $phone, $type, $limit, $opening, $address]) {
             if (Customer::where('phone', $phone)->exists()) {
                 continue;
             }
             $customer = Customer::create([
-                'name' => $name, 'phone' => $phone, 'type' => $type, 'credit_limit' => $limit,
+                'name' => $name, 'phone' => $phone, 'type' => $type, 'credit_limit' => $limit, 'credit_days' => $terms[$name] ?? null,
                 'opening_balance' => $opening, 'address' => $address.', Dar es Salaam', 'is_active' => true,
             ]);
             $ledger->openingBalance($customer, $opening);

@@ -68,7 +68,10 @@
                 </table>
             </div>
             <x-slot:footer>
-                <div class="d-flex justify-content-end gap-2">
+                <div class="d-flex flex-wrap justify-content-end gap-2">
+                    @if ($invalid)
+                        <a href="{{ route('products.import.errors') }}" class="btn btn-outline-danger me-auto"><i class="bi bi-file-earmark-excel"></i> {{ __('Download :n rows with errors', ['n' => $invalid]) }}</a>
+                    @endif
                     <form method="POST" action="{{ route('products.import.cancel') }}">@csrf<button class="btn btn-light">{{ __('Start over') }}</button></form>
                     <form method="POST" action="{{ route('products.import.commit') }}" x-data="{ loading: false }" @submit="loading = true">@csrf
                         <button class="btn btn-primary" @disabled($valid === 0) :disabled="loading"><span class="spinner-border" x-show="loading" x-cloak></span> {{ __('Import :n products', ['n' => $valid]) }}</button>

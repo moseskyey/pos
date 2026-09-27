@@ -46,9 +46,17 @@ abstract class Report
         return false;
     }
 
+    /** Optional module this report belongs to (Settings → Features); hidden when switched off. */
+    public function feature(): ?string
+    {
+        return null;
+    }
+
     public function authorize(User $user): bool
     {
-        return $user->can('reports.view') && (! $this->requiresProfit() || $user->can('reports.profit.view'));
+        return $user->can('reports.view')
+            && (! $this->requiresProfit() || $user->can('reports.profit.view'))
+            && ($this->feature() === null || feature($this->feature()));
     }
 
     public function slug(): string

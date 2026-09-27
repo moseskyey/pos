@@ -87,6 +87,7 @@ Route::middleware(['auth', 'active', 'subscribed'])->group(function () {
     Route::resource('roles', RoleController::class)->except('show');
     Route::get('/activity', [ActivityController::class, 'index'])->name('activity.index');
     Route::get('/settings/{group?}', [SettingsController::class, 'edit'])->name('settings.edit');
+    Route::post('/settings/features/preset', [SettingsController::class, 'applyPreset'])->name('settings.preset');
     Route::put('/settings/{group}', [SettingsController::class, 'update'])->name('settings.update');
 
     // Backups

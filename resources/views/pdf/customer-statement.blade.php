@@ -34,9 +34,9 @@
         <tfoot><tr><td></td><td>{{ __('Closing balance') }}</td><td class="text-end">{{ money($debits, false) }}</td><td class="text-end">{{ money($credits, false) }}</td><td class="text-end">{{ money($closing, false) }}</td></tr></tfoot>
     </table>
     <table class="grid" style="margin-top:16px">
-        <thead><tr><th>{{ __('0–30 days') }}</th><th>{{ __('31–60 days') }}</th><th>{{ __('61–90 days') }}</th><th>{{ __('90+ days') }}</th><th>{{ __('Total') }}</th></tr></thead>
+        <thead><tr>@foreach (\App\Services\CustomerStatementService::agingBuckets() as $label)<th>{{ $label }}</th>@endforeach<th>{{ __('Total') }}</th></tr></thead>
         <tbody><tr>
-            <td>{{ money($aging['current'], false) }}</td><td>{{ money($aging['31_60'], false) }}</td><td>{{ money($aging['61_90'], false) }}</td><td>{{ money($aging['over_90'], false) }}</td><td class="bold">{{ money($aging['total'], false) }}</td>
+            @foreach (array_keys(\App\Services\CustomerStatementService::agingBuckets()) as $k)<td>{{ money($aging[$k], false) }}</td>@endforeach<td class="bold">{{ money($aging['total'], false) }}</td>
         </tr></tbody>
     </table>
     <p class="muted" style="margin-top:18px">{{ __('Please pay via cash, M-Pesa or bank transfer. Asante kwa biashara!') }}</p>

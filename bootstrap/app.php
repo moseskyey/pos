@@ -2,6 +2,7 @@
 
 use App\Exceptions\BusinessRuleException;
 use App\Http\Middleware\AuthenticatePlatformAdmin;
+use App\Http\Middleware\EnsureFeatureEnabled;
 use App\Http\Middleware\EnsureSubscriptionActive;
 use App\Http\Middleware\EnsureUserIsActive;
 use App\Http\Middleware\HideDebugOnPublicHosts;
@@ -39,6 +40,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->prependToPriorityList(AuthenticatesRequests::class, InitializeTenancyFromRoute::class);
         $middleware->alias([
             'active' => EnsureUserIsActive::class,
+            'feature' => EnsureFeatureEnabled::class,
             'subscribed' => EnsureSubscriptionActive::class,
             'tenant.route' => InitializeTenancyFromRoute::class,
             'admin' => AuthenticatePlatformAdmin::class,

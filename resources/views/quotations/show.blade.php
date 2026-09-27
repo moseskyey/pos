@@ -12,7 +12,10 @@
             <span>· {{ $quotation->customer?->name ?? __('Walk-in') }}</span>
         </div></x-slot:meta>
         <a href="{{ route('receipts.invoice', $quotation) }}" target="_blank" class="btn btn-outline-secondary"><i class="bi bi-file-earmark-pdf"></i> {{ __('PDF') }}</a>
-        <a href="{{ app(\App\Services\ShareService::class)->saleLink($quotation) }}" target="_blank" rel="noopener" class="btn btn-outline-success"><i class="bi bi-whatsapp"></i> WhatsApp</a>
+        <x-email-document :sale="$quotation" />
+        @if (feature('whatsapp'))
+            <a href="{{ app(\App\Services\ShareService::class)->saleLink($quotation) }}" target="_blank" rel="noopener" class="btn btn-outline-success"><i class="bi bi-whatsapp"></i> WhatsApp</a>
+        @endif
         @if ($quotation->status->value === 'quotation')
             <a href="{{ route('quotations.edit', $quotation) }}" class="btn btn-outline-secondary"><i class="bi bi-pencil"></i> {{ __('Edit') }}</a>
             @can('pos.access')

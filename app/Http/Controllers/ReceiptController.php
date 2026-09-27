@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\EmailSaleDocumentRequest;
 use App\Models\Sale;
 use App\Services\EscPosReceiptService;
 use App\Services\ReceiptService;
@@ -42,6 +43,16 @@ class ReceiptController extends Controller
         $data = $this->receipts->data($sale) + ['docTitle' => $sale->status->value === 'quotation' ? __('Quotation') : __('Tax Invoice'), 'title' => $sale->number, 'copy' => $sale->status->value === 'voided'];
 
         return Pdf::loadView('pdf.invoice', $data)->setPaper('a4')->stream($sale->number.'.pdf');
+    }
+
+    /** Email the invoice (or quotation) PDF to the customer. */
+    public function email(EmailSaleDocumentRequest $request, Sale $sale): RedirectResponse
+    {
+        abort_if(in_array($sale->status->value, ['held', 'converted'], true), 404);
+        $data = $request->validated();
+        $this->receipts->sendEmail($sale, $data['email'], $request->user(), $data['message'] ?? null);
+
+        return back()->with('success', __('Emailed to :e.', ['e' => $data['email']]));
     }
 
     public function deliveryNote(Request $request, Sale $sale): Response

@@ -391,6 +391,11 @@ tests/Feature  tests/Unit
     - Central models set `$connection = 'central'`; business code keeps using the default connection.
     - Business-only artisan commands run through `tenants:run`.
     - Tests run inside test business #1 (`tests/RefreshTenantDatabase.php`).
+- Feature switches (Batch 1):
+  - Optional modules are listed in `config('dukapos.features')`; check them with `feature('key')`, guard routes with
+    the `feature:key` middleware, and pass a 6th element to `App\Support\Navigation` items.
+  - Business-type presets live in `config('dukapos.business_presets')`.
+  - Emailing invoices/quotations (`SaleDocumentMail`), import error report, customer credit terms and due dates.
 
 ---
 

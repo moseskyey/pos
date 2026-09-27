@@ -69,6 +69,11 @@ class SalesTable extends DataTable
             Column::make(__('Payment'))->format(fn ($s) => $s->payments->map(fn ($p) => $p->method->label())->unique()->join(', ') ?: '—'),
             Column::make(__('Total'), 'total')->sortable()->money()->total(),
             Column::make(__('Balance'), 'balance_due')->sortable()->money()->total()->html(fn ($s) => $s->balance_due > 0 ? '<span class="text-danger fw-semibold">'.e(money($s->balance_due)).'</span>' : '<span class="text-body-secondary">—</span>'),
+            Column::make(__('Due'), 'due_date')->sortable()->visible($this->customerId !== null && feature('credit_terms'))
+                ->html(fn ($s) => $s->due_date && $s->balance_due > 0
+                    ? '<span class="'.($s->isOverdue() ? 'text-danger fw-semibold' : '').'">'.e(format_date($s->due_date)).'</span>'
+                    : '<span class="text-body-secondary">—</span>')
+                ->exportAs(fn ($s) => $s->due_date ? format_date($s->due_date) : ''),
             Column::make(__('Status'), 'status')->badge(),
         ];
     }

@@ -5,7 +5,8 @@ namespace App\Support;
 use Illuminate\Support\Facades\Route;
 
 /**
- * Sidebar navigation definition. Items are filtered by permission at render time.
+ * Sidebar navigation definition: [label, icon, route, permission(s), active pattern(s), optional feature].
+ * Items are filtered by permission and by switched-off features at render time.
  */
 class Navigation
 {
@@ -19,7 +20,7 @@ class Navigation
             ['Sales', [
                 ['Sales', 'bi-receipt', 'sales.index', ['sales.view', 'sales.view_all'], 'sales.*'],
                 ['Returns', 'bi-arrow-counterclockwise', 'returns.index', 'sales.return', 'returns.*'],
-                ['Quotations', 'bi-file-earmark-text', 'quotations.index', 'quotations.manage', 'quotations.*'],
+                ['Quotations', 'bi-file-earmark-text', 'quotations.index', 'quotations.manage', 'quotations.*', 'quotations'],
                 ['Shifts', 'bi-cash-coin', 'shifts.index', ['shifts.open', 'shifts.manage'], 'shifts.*'],
             ]],
             ['Products', [
@@ -33,9 +34,9 @@ class Navigation
                 ['Stock Levels', 'bi-stack', 'stock.index', 'stock.view', 'stock.index'],
                 ['Movements', 'bi-arrow-left-right', 'stock.movements', 'stock.view', 'stock.movements'],
                 ['Adjustments', 'bi-sliders', 'adjustments.index', ['stock.adjust', 'stock.adjust.approve'], 'adjustments.*'],
-                ['Transfers', 'bi-truck', 'transfers.index', ['stock.transfer', 'stock.transfer.approve'], 'transfers.*'],
-                ['Stock Takes', 'bi-clipboard-check', 'stock-takes.index', ['stock.take', 'stock.take.approve'], 'stock-takes.*'],
-                ['Batches & Expiry', 'bi-calendar2-x', 'batches.index', 'stock.view', 'batches.*'],
+                ['Transfers', 'bi-truck', 'transfers.index', ['stock.transfer', 'stock.transfer.approve'], 'transfers.*', 'transfers'],
+                ['Stock Takes', 'bi-clipboard-check', 'stock-takes.index', ['stock.take', 'stock.take.approve'], 'stock-takes.*', 'stock_takes'],
+                ['Batches & Expiry', 'bi-calendar2-x', 'batches.index', 'stock.view', 'batches.*', 'batches'],
             ]],
             ['Purchases', [
                 ['Suppliers', 'bi-building', 'suppliers.index', 'suppliers.view', 'suppliers.*'],
@@ -50,8 +51,8 @@ class Navigation
                 ['Payments', 'bi-wallet2', 'customer-payments.index', 'customers.payments', 'customer-payments.*'],
             ]],
             ['Expenses', [
-                ['Expenses', 'bi-credit-card-2-back', 'expenses.index', 'expenses.view', 'expenses.*'],
-                ['Recurring', 'bi-arrow-repeat', 'recurring-expenses.index', 'expenses.manage', 'recurring-expenses.*'],
+                ['Expenses', 'bi-credit-card-2-back', 'expenses.index', 'expenses.view', 'expenses.*', 'expenses'],
+                ['Recurring', 'bi-arrow-repeat', 'recurring-expenses.index', 'expenses.manage', 'recurring-expenses.*', 'expenses'],
             ]],
             ['Reports', [
                 ['Reports', 'bi-bar-chart-line', 'reports.index', 'reports.view', 'reports.*'],
@@ -75,8 +76,9 @@ class Navigation
         $out = [];
         foreach (static::groups() as [$heading, $items]) {
             $visible = [];
-            foreach ($items as [$label, $icon, $route, $permission, $active]) {
-                if (! Route::has($route)) {
+            foreach ($items as $item) {
+                [$label, $icon, $route, $permission, $active] = $item;
+                if (! Route::has($route) || (isset($item[5]) && Features::disabled($item[5]))) {
                     continue;
                 }
                 $permissions = (array) $permission;

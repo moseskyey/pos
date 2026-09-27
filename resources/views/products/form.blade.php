@@ -119,6 +119,7 @@
                     </x-card>
                 @endif
 
+                @if (feature('variants') || $product->has_variants)
                 <x-card :title="__('Variants')" icon="bi-grid-3x3" class="mt-4" :subtitle="__('For boutiques: sizes, colours… each variant has its own SKU, stock and price.')">
                     <input type="hidden" name="has_variants" value="0">
                     <div class="form-check form-switch mb-3">
@@ -169,6 +170,7 @@
                         <button type="button" class="btn btn-sm btn-soft-primary" @click="addVariant()"><i class="bi bi-plus-lg"></i> {{ __('Add variant') }}</button>
                     </div>
                 </x-card>
+                @endif
             </div>
 
             <div class="col-lg-4">
@@ -188,8 +190,12 @@
 
                 <x-card :title="__('Inventory')" class="mt-4">
                     <x-toggle name="track_stock" :label="__('Track stock')" :checked="$product->track_stock" :help="__('Turn off for services.')" />
-                    <x-toggle name="track_batches" :label="__('Track batches & expiry')" :checked="$product->track_batches" :help="__('Pharmacy / food items. FEFO on sale.')" />
-                    <x-toggle name="is_weighted" :label="__('Sold by weight (scale barcode)')" :checked="$product->is_weighted" />
+                    @if (feature('batches') || $product->track_batches)
+                        <x-toggle name="track_batches" :label="__('Track batches & expiry')" :checked="$product->track_batches" :help="__('Pharmacy / food items. FEFO on sale.')" />
+                    @endif
+                    @if (feature('scale_items') || $product->is_weighted)
+                        <x-toggle name="is_weighted" :label="__('Sold by weight (scale barcode)')" :checked="$product->is_weighted" />
+                    @endif
                     <x-input name="reorder_level" type="number" step="0.001" min="0" :label="__('Reorder level')" :value="$product->reorder_level !== null ? (float) $product->reorder_level : 0" :help="__('Low-stock alert at or below this quantity.')" class="mb-0" />
                 </x-card>
 

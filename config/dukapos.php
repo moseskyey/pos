@@ -167,6 +167,23 @@ return [
      | Default settings (key => value). Stored overrides live in the `settings` table.
      */
     'settings' => [
+        // Feature toggles (see 'features' below). Existing modules default on.
+        'features.quotations' => true,
+        'features.layaway' => true,
+        'features.variants' => true,
+        'features.batches' => true,
+        'features.scale_items' => true,
+        'features.transfers' => true,
+        'features.stock_takes' => true,
+        'features.expenses' => true,
+        'features.whatsapp' => true,
+        'features.email_documents' => true,
+        'features.credit_terms' => true,
+        'features.business_type' => null,
+
+        // Credit terms
+        'credit.default_days' => 30,
+
         // Business
         'business.name' => 'DukaPOS Demo Store',
         'business.tin' => '',
@@ -272,6 +289,53 @@ return [
         'payments.fastlipa_webhook_secret',
         'sms.api_key',
         'sms.api_secret',
+    ],
+
+    /*
+     | Optional modules each business can switch on or off (Settings → Features).
+     | 'setting' overrides the default settings key "features.<key>".
+     | Switched-off features disappear from menus and their pages return 404.
+     */
+    'features' => [
+        'quotations' => ['label' => 'Quotations', 'icon' => 'bi-file-earmark-text', 'description' => 'Price quotes for customers that convert to a sale in one click.'],
+        'layaway' => ['label' => 'Layaway / deposits', 'icon' => 'bi-hourglass-split', 'description' => 'Customers pay in parts; stock is reserved until fully paid.'],
+        'credit_terms' => ['label' => 'Credit terms & due dates', 'icon' => 'bi-calendar-check', 'description' => 'Payment days per customer, a due date on every credit sale, and aging by due date.'],
+        'loyalty' => ['label' => 'Loyalty points', 'icon' => 'bi-stars', 'description' => 'Customers earn points on purchases and redeem them at the POS.', 'setting' => 'loyalty.enabled'],
+        'variants' => ['label' => 'Product variants', 'icon' => 'bi-grid-3x3-gap', 'description' => 'Sizes and colours with their own SKU, price and stock (boutiques, shoes).'],
+        'batches' => ['label' => 'Batches & expiry', 'icon' => 'bi-calendar2-x', 'description' => 'Batch numbers and expiry dates, first-expiry-first-out selling, expiry alerts (pharmacy, food).'],
+        'scale_items' => ['label' => 'Weighed items', 'icon' => 'bi-speedometer', 'description' => 'Items sold by weight and price-embedded scale barcodes (butchery, produce).'],
+        'transfers' => ['label' => 'Stock transfers', 'icon' => 'bi-truck', 'description' => 'Move stock between branches with approval, dispatch and receiving.'],
+        'stock_takes' => ['label' => 'Stock takes', 'icon' => 'bi-clipboard-check', 'description' => 'Full or cycle counts with variance reports.'],
+        'expenses' => ['label' => 'Expenses', 'icon' => 'bi-credit-card-2-back', 'description' => 'Record shop expenses, recurring bills and paid-outs from the drawer.'],
+        'whatsapp' => ['label' => 'WhatsApp sharing', 'icon' => 'bi-whatsapp', 'description' => 'Share invoices, quotations and statements through WhatsApp links.'],
+        'email_documents' => ['label' => 'Email documents', 'icon' => 'bi-envelope', 'description' => 'Email receipts, invoices and quotations to customers as PDF.'],
+    ],
+
+    /*
+     | One-click feature presets per business type. Unlisted features are left as they are.
+     */
+    'business_presets' => [
+        'supermarket' => ['label' => 'Supermarket / mini-mart', 'icon' => 'bi-basket', 'features' => [
+            'quotations' => false, 'layaway' => false, 'credit_terms' => false, 'loyalty' => true, 'variants' => false,
+            'batches' => true, 'scale_items' => true, 'stock_takes' => true, 'expenses' => true]],
+        'pharmacy' => ['label' => 'Pharmacy', 'icon' => 'bi-capsule', 'features' => [
+            'quotations' => false, 'layaway' => false, 'credit_terms' => true, 'loyalty' => true, 'variants' => false,
+            'batches' => true, 'scale_items' => false, 'stock_takes' => true, 'expenses' => true]],
+        'hardware' => ['label' => 'Hardware', 'icon' => 'bi-hammer', 'features' => [
+            'quotations' => true, 'layaway' => true, 'credit_terms' => true, 'loyalty' => false, 'variants' => false,
+            'batches' => false, 'scale_items' => true, 'stock_takes' => true, 'expenses' => true]],
+        'boutique' => ['label' => 'Boutique / fashion', 'icon' => 'bi-bag-heart', 'features' => [
+            'quotations' => false, 'layaway' => true, 'credit_terms' => false, 'loyalty' => true, 'variants' => true,
+            'batches' => false, 'scale_items' => false, 'stock_takes' => true, 'expenses' => true]],
+        'electronics' => ['label' => 'Electronics & phones', 'icon' => 'bi-phone', 'features' => [
+            'quotations' => true, 'layaway' => true, 'credit_terms' => true, 'loyalty' => false, 'variants' => true,
+            'batches' => false, 'scale_items' => false, 'stock_takes' => true, 'expenses' => true]],
+        'cosmetics' => ['label' => 'Cosmetics & beauty', 'icon' => 'bi-droplet-half', 'features' => [
+            'quotations' => false, 'layaway' => true, 'credit_terms' => false, 'loyalty' => true, 'variants' => true,
+            'batches' => true, 'scale_items' => false, 'stock_takes' => true, 'expenses' => true]],
+        'wholesale' => ['label' => 'Wholesale', 'icon' => 'bi-boxes', 'features' => [
+            'quotations' => true, 'layaway' => false, 'credit_terms' => true, 'loyalty' => false, 'variants' => false,
+            'batches' => true, 'scale_items' => false, 'stock_takes' => true, 'expenses' => true]],
     ],
 
     'denominations' => [10000, 5000, 2000, 1000, 500, 200, 100, 50],

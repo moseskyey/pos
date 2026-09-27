@@ -15,9 +15,9 @@
         </div>
         <div class="page-actions">
             <a href="{{ route('customers.statement', $customer) }}" target="_blank" class="btn btn-outline-secondary"><i class="bi bi-file-earmark-pdf"></i> {{ __('Statement') }}</a>
-            @can('customers.payments')
+            @if (feature('whatsapp') && auth()->user()->can('customers.payments'))
                 <a href="{{ app(\App\Services\ShareService::class)->statementLink($customer) }}" target="_blank" rel="noopener" class="btn btn-outline-success"><i class="bi bi-whatsapp"></i> WhatsApp</a>
-            @endcan
+            @endif
             @if ($customer->balance > 0)
                 @can('customers.payments')
                     @if ($customer->phone)
@@ -48,11 +48,11 @@
             <div class="row g-4">
                 <div class="col-lg-6">
                     <x-card :title="__('Debt aging')">
-                        @foreach (['current' => __('0–30 days'), '31_60' => __('31–60 days'), '61_90' => __('61–90 days'), 'over_90' => __('Over 90 days')] as $k => $label)
+                        @foreach (\App\Services\CustomerStatementService::agingBuckets() as $k => $label)
                             @php $pct = $aging['total'] > 0 ? $aging[$k] / $aging['total'] * 100 : 0; @endphp
                             <div class="mb-3">
                                 <div class="d-flex justify-content-between small"><span>{{ $label }}</span><span class="fw-semibold text-money">{{ money($aging[$k]) }}</span></div>
-                                <div class="progress" style="height:6px"><div class="progress-bar {{ $k === 'over_90' ? 'bg-danger' : ($k === '61_90' ? 'bg-warning' : '') }}" style="width: {{ $pct }}%"></div></div>
+                                <div class="progress" style="height:6px"><div class="progress-bar {{ match ($k) { 'current' => 'bg-success', '1_30' => '', '31_60', '61_90' => 'bg-warning', default => 'bg-danger' } }}" style="width: {{ $pct }}%"></div></div>
                             </div>
                         @endforeach
                     </x-card>

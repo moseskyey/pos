@@ -36,6 +36,7 @@ Route::get('/products/import', [ProductImportController::class, 'create'])->name
 Route::post('/products/import', [ProductImportController::class, 'upload'])->name('products.import.upload');
 Route::post('/products/import/commit', [ProductImportController::class, 'commit'])->name('products.import.commit');
 Route::post('/products/import/cancel', [ProductImportController::class, 'cancel'])->name('products.import.cancel');
+Route::get('/products/import/errors', [ProductImportController::class, 'errors'])->name('products.import.errors');
 Route::get('/products/import/template', [ProductImportController::class, 'template'])->name('products.import.template');
 Route::get('/products/export', [ProductImportController::class, 'export'])->name('products.export');
 Route::get('/products/bulk-price', [BulkPriceController::class, 'create'])->name('products.bulk-price');
@@ -48,7 +49,9 @@ Route::post('/labels/print', [LabelController::class, 'print'])->name('labels.pr
 // -------------------------------------------------------------- Inventory --
 Route::get('/stock', [StockController::class, 'index'])->name('stock.index');
 Route::get('/stock/movements', [StockController::class, 'movements'])->name('stock.movements');
-Route::get('/stock/batches', [StockController::class, 'batches'])->name('batches.index');
+Route::middleware('feature:batches')->group(function () {
+    Route::get('/stock/batches', [StockController::class, 'batches'])->name('batches.index');
+});
 
 Route::get('/adjustments', [StockAdjustmentController::class, 'index'])->name('adjustments.index');
 Route::get('/adjustments/create', [StockAdjustmentController::class, 'create'])->name('adjustments.create');
@@ -56,20 +59,24 @@ Route::get('/adjustments/{adjustment}', [StockAdjustmentController::class, 'show
 Route::post('/adjustments/{adjustment}/approve', [StockAdjustmentController::class, 'approve'])->name('adjustments.approve');
 Route::post('/adjustments/{adjustment}/reject', [StockAdjustmentController::class, 'reject'])->name('adjustments.reject');
 
-Route::get('/transfers', [StockTransferController::class, 'index'])->name('transfers.index');
-Route::get('/transfers/create', [StockTransferController::class, 'create'])->name('transfers.create');
-Route::get('/transfers/{transfer}', [StockTransferController::class, 'show'])->name('transfers.show');
-Route::post('/transfers/{transfer}/approve', [StockTransferController::class, 'approve'])->name('transfers.approve');
-Route::post('/transfers/{transfer}/dispatch', [StockTransferController::class, 'dispatch'])->name('transfers.dispatch');
-Route::post('/transfers/{transfer}/receive', [StockTransferController::class, 'receive'])->name('transfers.receive');
-Route::post('/transfers/{transfer}/cancel', [StockTransferController::class, 'cancel'])->name('transfers.cancel');
+Route::middleware('feature:transfers')->group(function () {
+    Route::get('/transfers', [StockTransferController::class, 'index'])->name('transfers.index');
+    Route::get('/transfers/create', [StockTransferController::class, 'create'])->name('transfers.create');
+    Route::get('/transfers/{transfer}', [StockTransferController::class, 'show'])->name('transfers.show');
+    Route::post('/transfers/{transfer}/approve', [StockTransferController::class, 'approve'])->name('transfers.approve');
+    Route::post('/transfers/{transfer}/dispatch', [StockTransferController::class, 'dispatch'])->name('transfers.dispatch');
+    Route::post('/transfers/{transfer}/receive', [StockTransferController::class, 'receive'])->name('transfers.receive');
+    Route::post('/transfers/{transfer}/cancel', [StockTransferController::class, 'cancel'])->name('transfers.cancel');
+});
 
-Route::get('/stock-takes', [StockTakeController::class, 'index'])->name('stock-takes.index');
-Route::post('/stock-takes', [StockTakeController::class, 'store'])->name('stock-takes.store');
-Route::get('/stock-takes/{stockTake}', [StockTakeController::class, 'show'])->name('stock-takes.show');
-Route::post('/stock-takes/{stockTake}/submit', [StockTakeController::class, 'submit'])->name('stock-takes.submit');
-Route::post('/stock-takes/{stockTake}/post', [StockTakeController::class, 'post'])->name('stock-takes.post');
-Route::post('/stock-takes/{stockTake}/cancel', [StockTakeController::class, 'cancel'])->name('stock-takes.cancel');
+Route::middleware('feature:stock_takes')->group(function () {
+    Route::get('/stock-takes', [StockTakeController::class, 'index'])->name('stock-takes.index');
+    Route::post('/stock-takes', [StockTakeController::class, 'store'])->name('stock-takes.store');
+    Route::get('/stock-takes/{stockTake}', [StockTakeController::class, 'show'])->name('stock-takes.show');
+    Route::post('/stock-takes/{stockTake}/submit', [StockTakeController::class, 'submit'])->name('stock-takes.submit');
+    Route::post('/stock-takes/{stockTake}/post', [StockTakeController::class, 'post'])->name('stock-takes.post');
+    Route::post('/stock-takes/{stockTake}/cancel', [StockTakeController::class, 'cancel'])->name('stock-takes.cancel');
+});
 
 // ------------------------------------------------------------ POS & shifts --
 Route::view('/pos', 'pos.index')->middleware('can:pos.access')->name('pos');
@@ -87,6 +94,7 @@ Route::get('/shifts/{shift}/report/{type}', [ShiftController::class, 'report'])-
 Route::get('/receipts/{sale}', [ReceiptController::class, 'show'])->name('receipts.show');
 Route::get('/receipts/{sale}/reprint', [ReceiptController::class, 'reprint'])->name('receipts.reprint');
 Route::get('/receipts/{sale}/invoice', [ReceiptController::class, 'invoice'])->name('receipts.invoice');
+Route::post('/receipts/{sale}/email', [ReceiptController::class, 'email'])->middleware(['feature:email_documents', 'throttle:20,1'])->name('receipts.email');
 Route::get('/receipts/{sale}/delivery-note', [ReceiptController::class, 'deliveryNote'])->name('receipts.delivery-note');
 Route::get('/receipts/{sale}/escpos', [ReceiptController::class, 'escpos'])->name('receipts.escpos');
 Route::post('/pos/drawer', [ReceiptController::class, 'openDrawer'])->middleware('throttle:20,1')->name('pos.drawer');
@@ -97,11 +105,13 @@ Route::get('/sales/{sale}', [SaleController::class, 'show'])->name('sales.show')
 Route::get('/returns', [SaleReturnController::class, 'index'])->name('returns.index');
 Route::get('/returns/create', [SaleReturnController::class, 'create'])->name('returns.create');
 Route::get('/returns/{return}', [SaleReturnController::class, 'show'])->name('returns.show');
-Route::get('/quotations', [QuotationController::class, 'index'])->name('quotations.index');
-Route::get('/quotations/create', [QuotationController::class, 'create'])->name('quotations.create');
-Route::get('/quotations/{quotation}', [QuotationController::class, 'show'])->name('quotations.show');
-Route::get('/quotations/{quotation}/edit', [QuotationController::class, 'edit'])->name('quotations.edit');
-Route::post('/quotations/{quotation}/convert', [QuotationController::class, 'convert'])->name('quotations.convert');
+Route::middleware('feature:quotations')->group(function () {
+    Route::get('/quotations', [QuotationController::class, 'index'])->name('quotations.index');
+    Route::get('/quotations/create', [QuotationController::class, 'create'])->name('quotations.create');
+    Route::get('/quotations/{quotation}', [QuotationController::class, 'show'])->name('quotations.show');
+    Route::get('/quotations/{quotation}/edit', [QuotationController::class, 'edit'])->name('quotations.edit');
+    Route::post('/quotations/{quotation}/convert', [QuotationController::class, 'convert'])->name('quotations.convert');
+});
 
 Route::resource('customers', CustomerController::class);
 Route::get('/customers/{customer}/statement', [CustomerController::class, 'statement'])->name('customers.statement');
@@ -136,9 +146,11 @@ Route::get('/purchase-returns/{purchaseReturn}', [PurchaseController::class, 'sh
 Route::get('/reorder', [PurchaseController::class, 'reorder'])->name('reorder.index');
 Route::post('/reorder', [PurchaseController::class, 'createFromReorder'])->name('reorder.store');
 
-Route::get('/expenses/recurring', [ExpenseController::class, 'recurring'])->name('recurring-expenses.index');
-Route::post('/expenses/categories', [ExpenseController::class, 'storeCategory'])->name('expense-categories.store');
-Route::resource('expenses', ExpenseController::class)->except('show');
+Route::middleware('feature:expenses')->group(function () {
+    Route::get('/expenses/recurring', [ExpenseController::class, 'recurring'])->name('recurring-expenses.index');
+    Route::post('/expenses/categories', [ExpenseController::class, 'storeCategory'])->name('expense-categories.store');
+    Route::resource('expenses', ExpenseController::class)->except('show');
+});
 
 // ----------------------------------------------------------------- Reports --
 Route::get('/reports', [ReportController::class, 'index'])->name('reports.index');

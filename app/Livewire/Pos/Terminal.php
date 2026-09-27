@@ -94,6 +94,7 @@ class Terminal extends Component
     // Payment ------------------------------------------------------------------
     public array $payments = [];
 
+    #[Locked]
     public ?array $completed = null;
 
     public function mount(ShiftService $shifts): void
@@ -105,7 +106,7 @@ class Terminal extends Component
         $this->idempotencyKey = (string) Str::uuid();
         $this->customerId = setting('pos.default_customer_id') ?: null;
 
-        if ($quotation = request()->integer('quotation')) {
+        if (feature('quotations') && ($quotation = request()->integer('quotation'))) {
             $this->loadQuotation($quotation);
         }
     }
@@ -703,12 +704,17 @@ class Terminal extends Component
 
     public function checkoutLayaway(SaleService $sales): void
     {
-        abort_unless(auth()->user()->can('layaway.manage'), 403);
+        abort_unless(auth()->user()->can('layaway.manage') && feature('layaway'), 403);
         $this->checkout($sales, 'layaway');
     }
 
     public function checkout(SaleService $sales, string $status = 'completed'): void
     {
+        // Callable from the browser: never trust $status without re-checking it.
+        abort_unless(in_array($status, ['completed', 'layaway'], true), 400);
+        if ($status === 'layaway') {
+            abort_unless(auth()->user()->can('layaway.manage') && feature('layaway'), 403);
+        }
         if (session('pos_locked')) {
             $this->dispatch('toast', message: __('Terminal locked. Enter your PIN to continue.'), type: 'error');
 
@@ -744,8 +750,9 @@ class Terminal extends Component
             'layaway' => $status === 'layaway',
             'customer' => $sale->customer?->name,
             'phone' => $sale->customer?->phone,
+            'email' => $sale->customer?->email,
             'receipt' => route('receipts.show', $sale),
-            'whatsapp' => app(ShareService::class)->saleLink($sale),
+            'whatsapp' => feature('whatsapp') ? app(ShareService::class)->saleLink($sale) : null,
             'escpos' => setting('receipt.print_mode') === 'escpos' ? route('receipts.escpos', $sale) : null,
         ];
         $this->clearCart();
@@ -757,6 +764,19 @@ class Terminal extends Component
     {
         $this->completed = null;
         $this->dispatch('focus-search');
+    }
+
+    public function emailReceipt(ReceiptService $receipts): void
+    {
+        $sale = $this->completed ? Sale::with('customer')->find($this->completed['id']) : null;
+        abort_unless($sale && feature('email_documents') && auth()->user()->can('document', $sale), 403);
+        if (! $sale->customer?->email) {
+            $this->dispatch('toast', message: __('The customer has no email address.'), type: 'warning');
+
+            return;
+        }
+        $receipts->sendEmail($sale, $sale->customer->email, auth()->user());
+        $this->dispatch('toast', message: __('Invoice emailed to :e.', ['e' => $sale->customer->email]));
     }
 
     public function smsReceipt(): void
