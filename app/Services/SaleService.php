@@ -154,7 +154,7 @@ class SaleService
             $this->checkBelowCost($lines, $totals, $cashier, $approvals);
 
             // Payments ------------------------------------------------------
-            [$paymentRows, $paid, $tendered, $change, $creditAmount, $storeCreditAmount] = $this->preparePayments($payments, $totals['total'], $customer, $cashier, $approvals, $status);
+            [$paymentRows, $paid, $tendered, $change, $creditAmount, $storeCreditAmount] = $this->preparePayments($payments, $totals['total'], $customer, $cashier, $approvals, $status, $shift->branch_id);
 
             // Sale ----------------------------------------------------------
             $sale = Sale::withoutGlobalScopes()->create([
@@ -226,7 +226,10 @@ class SaleService
 
             // Payment rows ----------------------------------------------------
             foreach ($paymentRows as $row) {
+                $intent = $row['intent'] ?? null;
+                unset($row['intent']);
                 $sale->payments()->create($row + ['branch_id' => $sale->branch_id, 'shift_id' => $shift->id, 'received_by' => $cashier->id]);
+                $intent?->update(['sale_id' => $sale->id]);
             }
 
             if ($customer && Money::isPositive($creditAmount)) {
@@ -444,7 +447,7 @@ class SaleService
     /**
      * @return array{0: array, 1: string, 2: string, 3: string, 4: string, 5: string}
      */
-    protected function preparePayments(array $payments, string $total, ?Customer $customer, User $user, array $approvals, string $status): array
+    protected function preparePayments(array $payments, string $total, ?Customer $customer, User $user, array $approvals, string $status, int $branchId): array
     {
         $rows = [];
         $remaining = $total;
@@ -479,7 +482,14 @@ class SaleService
                 continue;
             }
 
-            if ($method->isMobileMoney() && empty($payment['reference']) && empty($payment['gateway_reference'])) {
+            // STK push payments are only accepted once verified server-side;
+            // client-supplied gateway fields are never trusted.
+            $intent = null;
+            if ($method->isMobileMoney() && ! empty($payment['intent_reference'])) {
+                $intent = app(PaymentService::class)->consume($payment['intent_reference'], $method, $amount, $branchId);
+                $payment['reference'] = $intent->provider_reference ?? $intent->reference;
+            }
+            if ($method->isMobileMoney() && empty($payment['reference'])) {
                 throw new BusinessRuleException(__('Enter the :m transaction reference.', ['m' => $method->label()]));
             }
             if ($method === PaymentMethod::Credit) {
@@ -504,9 +514,10 @@ class SaleService
                 'method' => $method->value,
                 'amount' => $amount,
                 'reference' => $payment['reference'] ?? null,
-                'gateway' => $payment['gateway'] ?? null,
-                'gateway_status' => $payment['gateway_status'] ?? null,
-                'gateway_reference' => $payment['gateway_reference'] ?? null,
+                'gateway' => $intent?->gateway,
+                'gateway_status' => $intent?->status,
+                'gateway_reference' => $intent?->provider_reference,
+                'intent' => $intent,
                 'meta' => $method === PaymentMethod::Cash ? ['tendered' => $payment['amount'], 'change' => Money::sub($payment['amount'], $amount)] : null,
             ];
             $remaining = Money::sub($remaining, $amount);

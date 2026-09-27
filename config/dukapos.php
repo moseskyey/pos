@@ -223,6 +223,7 @@ return [
         'payments.gateway' => 'manual', // manual | fastlipa
         'payments.fastlipa_api_key' => null,
         'payments.fastlipa_base_url' => 'https://api.fastlipa.com',
+        'payments.fastlipa_webhook_secret' => null,
 
         // SMS & notifications
         'sms.driver' => 'log', // log | beem
@@ -263,6 +264,7 @@ return [
      */
     'encrypted_settings' => [
         'payments.fastlipa_api_key',
+        'payments.fastlipa_webhook_secret',
         'sms.api_key',
         'sms.api_secret',
     ],

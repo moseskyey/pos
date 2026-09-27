@@ -48,4 +48,29 @@ class PhoneNumber
 
         return substr($local, 0, 4).' '.substr($local, 4, 3).' '.substr($local, 7);
     }
+
+    /** Mobile network by prefix (single source of truth). */
+    public const NETWORKS = [
+        'vodacom' => ['74', '75', '76'],
+        'airtel' => ['68', '69', '78'],
+        'yas' => ['65', '67', '71', '77'],
+        'halotel' => ['61', '62'],
+        'ttcl' => ['73'],
+    ];
+
+    public static function network(?string $phone): ?string
+    {
+        $normalized = static::normalize($phone);
+        if (! $normalized) {
+            return null;
+        }
+        $prefix = substr($normalized, 3, 2);
+        foreach (static::NETWORKS as $network => $prefixes) {
+            if (in_array($prefix, $prefixes, true)) {
+                return $network;
+            }
+        }
+
+        return null;
+    }
 }

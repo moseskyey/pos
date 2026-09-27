@@ -105,8 +105,11 @@
                             <div class="row">
                                 <div class="col-md-6"><x-select :name="$f('payments.gateway')" :label="__('STK push driver')" :options="['manual' => __('Manual (no STK push)'), 'fastlipa' => 'FastLipa']" :value="$s['payments.gateway']" /></div>
                                 <div class="col-md-6"><x-input :name="$f('payments.fastlipa_base_url')" :label="__('FastLipa API URL')" :value="$s['payments.fastlipa_base_url']" /></div>
-                                <div class="col-12"><x-input :name="$f('payments.fastlipa_api_key')" type="password" :label="__('FastLipa API key')" autocomplete="off"
+                                <div class="col-md-6"><x-input :name="$f('payments.fastlipa_api_key')" type="password" :label="__('FastLipa API key')" autocomplete="off"
                                              :help="$s['payments.fastlipa_api_key'] ? __('A key is saved (encrypted). Leave blank to keep it.') : __('Stored encrypted.')" class="mb-0" /></div>
+                                <div class="col-md-6"><x-input :name="$f('payments.fastlipa_webhook_secret')" type="password" :label="__('Webhook signing secret')" autocomplete="off"
+                                             :help="$s['payments.fastlipa_webhook_secret'] ? __('Saved. Leave blank to keep.') : __('Without it, callbacks are verified by re-querying FastLipa.')" class="mb-0" /></div>
+                                <div class="col-12 mt-3"><div class="small text-body-secondary">{{ __('Callback URL') }}: <code class="user-select-all">{{ route('payments.callback', 'fastlipa') }}</code></div></div>
                             </div>
                         </x-card>
                         @break

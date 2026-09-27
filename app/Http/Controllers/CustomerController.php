@@ -2,9 +2,9 @@
 
 namespace App\Http\Controllers;
 
-use App\Contracts\SmsGateway;
 use App\Enums\SaleStatus;
 use App\Http\Requests\CustomerRequest;
+use App\Jobs\SendSms;
 use App\Models\Customer;
 use App\Models\SaleItem;
 use App\Services\CustomerLedgerService;
@@ -118,15 +118,15 @@ class CustomerController extends Controller
             ->setPaper('a4')->stream('statement-'.Str::slug($customer->name).'.pdf');
     }
 
-    public function remind(Request $request, Customer $customer, SmsGateway $sms): RedirectResponse
+    public function remind(Request $request, Customer $customer): RedirectResponse
     {
         abort_unless($request->user()->can('customers.payments'), 403);
         if (! $customer->phone || $customer->balance <= 0) {
             return back()->with('error', __('This customer has no phone number or no balance.'));
         }
-        $result = $sms->send($customer->phone, $this->statements->reminderText($customer));
-        activity('customers')->performedOn($customer)->withProperties(['ok' => $result->ok])->log('Debt reminder SMS sent');
+        SendSms::dispatch($customer->phone, $this->statements->reminderText($customer));
+        activity('customers')->performedOn($customer)->log('Debt reminder SMS queued');
 
-        return back()->with($result->ok ? 'success' : 'error', $result->ok ? __('Reminder sent.') : __('SMS failed: :e', ['e' => $result->error]));
+        return back()->with('success', __('Reminder sent.'));
     }
 }

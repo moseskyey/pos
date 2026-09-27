@@ -2,7 +2,7 @@
 
 namespace App\Services;
 
-use App\Contracts\SmsGateway;
+use App\Jobs\SendSms;
 use App\Models\Sale;
 use App\Support\Money;
 use App\Support\QrCode;
@@ -61,9 +61,9 @@ class ReceiptService
         if (! $phone) {
             return false;
         }
-        $result = app(SmsGateway::class)->send($phone, $this->smsText($sale));
-        activity('sales')->performedOn($sale)->withProperties(['to' => $phone, 'ok' => $result->ok])->log('SMS receipt sent');
+        SendSms::dispatch($phone, $this->smsText($sale))->afterCommit();
+        activity('sales')->performedOn($sale)->withProperties(['to' => $phone])->log('SMS receipt queued');
 
-        return $result->ok;
+        return true;
     }
 }

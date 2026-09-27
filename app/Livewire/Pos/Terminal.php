@@ -10,6 +10,7 @@ use App\Exceptions\BusinessRuleException;
 use App\Livewire\Concerns\RequiresApproval;
 use App\Models\Category;
 use App\Models\Customer;
+use App\Models\PaymentIntent;
 use App\Models\Product;
 use App\Models\ProductUnit;
 use App\Models\Register;
@@ -17,6 +18,7 @@ use App\Models\Sale;
 use App\Models\Shift;
 use App\Services\CustomerLedgerService;
 use App\Services\LoyaltyService;
+use App\Services\PaymentService;
 use App\Services\Pos\CartCalculator;
 use App\Services\Pos\PriceResolver;
 use App\Services\ProductService;
@@ -26,7 +28,6 @@ use App\Services\SaleService;
 use App\Services\ShiftService;
 use App\Services\StockService;
 use App\Support\BranchContext;
-use App\Support\Integrations\PaymentRequest;
 use App\Support\Money;
 use App\Support\PhoneNumber;
 use App\Support\Qty;
@@ -601,36 +602,53 @@ class Terminal extends Component
         }
     }
 
-    public function sendStkPush(int $index): void
+    public function sendStkPush(int $index, PaymentService $payments): void
     {
-        $gateway = app(PaymentGateway::class);
         $payment = $this->payments[$index] ?? null;
-        if (! $payment || ! $gateway->supportsPush()) {
+        $method = PaymentMethod::tryFrom($payment['method'] ?? '');
+        if (! $payment || ! $method || ! app(PaymentGateway::class)->supportsPush() || ! $this->shift) {
             return;
         }
-        $phone = PhoneNumber::normalize($payment['phone'] ?? $this->customer?->phone);
-        if (! $phone) {
-            $this->addError("payments.$index.phone", __('Enter the customer phone number.'));
+        $phone = $payment['phone'] ?? null ?: $this->customer?->phone;
+        try {
+            $intent = $payments->initiate($this->shift->branch_id, auth()->user(), $method, (string) $phone, $payment['amount'], $this->idempotencyKey.'-'.$index.'-'.Str::lower(Str::random(4)));
+        } catch (BusinessRuleException $e) {
+            $this->addError("payments.$index.phone", $e->getMessage());
 
             return;
         }
-        $result = $gateway->initiate(new PaymentRequest($this->idempotencyKey.'-'.$index, Money::round($payment['amount']), $phone, $payment['method'], __('Payment to :b', ['b' => setting('business.name')])));
-        $this->payments[$index]['gateway'] = setting('payments.gateway');
-        $this->payments[$index]['gateway_status'] = $result->status;
-        $this->payments[$index]['gateway_reference'] = $result->providerReference;
-        $this->dispatch('toast', message: $result->message ?? ($result->pending() ? __('Payment request sent to :p. Ask the customer to enter their PIN.', ['p' => PhoneNumber::display($phone)]) : __('Payment request failed.')), type: $result->status === 'failed' ? 'error' : 'info');
+        $this->payments[$index]['intent_reference'] = $intent->reference;
+        $this->payments[$index]['intent_status'] = $intent->status;
+        $this->dispatch('toast', message: $intent->status === 'failed' ? ($intent->message ?: __('Payment request failed.'))
+            : __('Payment request sent to :p. Ask the customer to enter their PIN.', ['p' => PhoneNumber::display($intent->phone)]), type: $intent->status === 'failed' ? 'error' : 'info');
     }
 
-    public function checkStkStatus(int $index): void
+    public function checkStkStatus(int $index, PaymentService $payments): void
     {
-        $ref = $this->payments[$index]['gateway_reference'] ?? null;
-        if (! $ref) {
+        $ref = $this->payments[$index]['intent_reference'] ?? null;
+        $intent = $ref ? PaymentIntent::query()->where('reference', $ref)->first() : null;
+        if (! $intent) {
             return;
         }
-        $result = app(PaymentGateway::class)->status($ref);
-        $this->payments[$index]['gateway_status'] = $result->status;
-        if ($result->successful()) {
-            $this->payments[$index]['reference'] = $result->providerReference ?? $ref;
+        $intent = $payments->refresh($intent);
+        $this->payments[$index]['intent_status'] = $intent->status;
+        if ($intent->status === 'completed') {
+            $this->payments[$index]['amount'] = (float) $intent->amount;
+            $this->dispatch('toast', message: __(':m payment confirmed.', ['m' => PaymentMethod::from($intent->method)->label()]));
+        }
+    }
+
+    /** Poll pending pushes (called by wire:poll while a push is pending). */
+    public function pollStk(PaymentService $payments): void
+    {
+        foreach ($this->payments as $i => $p) {
+            if (! empty($p['intent_reference']) && in_array($p['intent_status'] ?? null, ['pending', 'processing'], true)) {
+                $intent = PaymentIntent::query()->where('reference', $p['intent_reference'])->first();
+                if ($intent && ! $intent->isTerminal() && $intent->updated_at->lt(now()->subSeconds(8))) {
+                    $intent = $payments->refresh($intent);
+                }
+                $this->payments[$i]['intent_status'] = $intent?->status;
+            }
         }
     }
 

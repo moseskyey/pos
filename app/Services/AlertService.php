@@ -2,7 +2,7 @@
 
 namespace App\Services;
 
-use App\Contracts\SmsGateway;
+use App\Jobs\SendSms;
 use App\Models\Branch;
 use App\Models\ProductBatch;
 use App\Models\ProductStock;
@@ -51,7 +51,7 @@ class AlertService
                 $this->notify($branch->id, 'stock.view', $alert);
                 if (setting('notify.low_stock_sms')) {
                     foreach ($this->recipients($branch->id, 'stock.adjust.approve')->whereNotNull('phone') as $manager) {
-                        app(SmsGateway::class)->send($manager->phone, $alert->title.': '.$alert->message);
+                        SendSms::dispatch($manager->phone, $alert->title.': '.$alert->message);
                     }
                 }
                 $sent++;

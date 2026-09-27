@@ -316,11 +316,18 @@
                                                 @if ($method->needsReference())
                                                     <input type="text" class="form-control" wire:model="payments.{{ $i }}.reference" placeholder="{{ $method->isMobileMoney() ? __('Transaction ID, e.g. SGH7K2L9QX') : __('Reference') }}" aria-label="{{ __('Reference') }}">
                                                     @if ($method->isMobileMoney() && $supportsPush)
-                                                        <div class="input-group input-group-sm mt-1">
-                                                            <input type="text" class="form-control" wire:model="payments.{{ $i }}.phone" placeholder="{{ $this->customer?->displayPhone() ?: '07XX XXX XXX' }}">
-                                                            <button type="button" class="btn btn-outline-primary" wire:click="sendStkPush({{ $i }})"><i class="bi bi-phone-vibrate"></i> {{ __('Push') }}</button>
-                                                            @if (! empty($p['gateway_reference']))<button type="button" class="btn btn-outline-secondary" wire:click="checkStkStatus({{ $i }})">{{ __(ucfirst($p['gateway_status'] ?? 'pending')) }}</button>@endif
+                                                        @php $st = $p['intent_status'] ?? null; @endphp
+                                                        <div class="input-group input-group-sm mt-1" @if (in_array($st, ['pending', 'processing'])) wire:poll.4s="pollStk" @endif>
+                                                            <input type="text" class="form-control @error('payments.'.$i.'.phone') is-invalid @enderror" wire:model="payments.{{ $i }}.phone" placeholder="{{ $this->customer?->displayPhone() ?: '07XX XXX XXX' }}" aria-label="{{ __('Customer phone') }}" @disabled($st === 'completed')>
+                                                            @if ($st === 'completed')
+                                                                <span class="input-group-text text-success"><i class="bi bi-check-circle-fill"></i>&nbsp;{{ __('Confirmed') }}</span>
+                                                            @elseif (in_array($st, ['pending', 'processing']))
+                                                                <button type="button" class="btn btn-outline-secondary" wire:click="checkStkStatus({{ $i }})"><span class="spinner-border spinner-border-sm"></span> {{ __('Waiting…') }}</button>
+                                                            @else
+                                                                <button type="button" class="btn btn-outline-primary" wire:click="sendStkPush({{ $i }})"><i class="bi bi-phone-vibrate"></i> {{ $st === 'failed' ? __('Retry push') : __('Send push') }}</button>
+                                                            @endif
                                                         </div>
+                                                        @error('payments.'.$i.'.phone')<div class="text-danger small">{{ $message }}</div>@enderror
                                                     @endif
                                                 @elseif ($method === \App\Enums\PaymentMethod::Credit)
                                                     <span class="small {{ $this->customer ? 'text-body-secondary' : 'text-danger' }}">{{ $this->customer ? __('Limit :l · owes :b', ['l' => money($this->customer->credit_limit), 'b' => money($this->customer->balance)]) : __('Select a customer (F4)') }}</span>

@@ -35,4 +35,20 @@ return [
         ],
     ],
 
+    /*
+     | FastLipa mobile money (STK push). Credentials live in Settings (encrypted);
+     | endpoint paths are configurable here in case the provider changes them.
+     */
+    'fastlipa' => [
+        'initiate_path' => env('FASTLIPA_INITIATE_PATH', '/api/create-transaction'),
+        'status_path' => env('FASTLIPA_STATUS_PATH', '/api/status-transaction'),
+        'signature_header' => env('FASTLIPA_SIGNATURE_HEADER', 'X-FastLipa-Signature'),
+        'timeout' => (int) env('FASTLIPA_TIMEOUT', 20),
+        'allowed_ips' => array_filter(explode(',', (string) env('FASTLIPA_ALLOWED_IPS', ''))),
+    ],
+
+    'beem' => [
+        'url' => env('BEEM_SMS_URL', 'https://apisms.beem.africa/v1/send'),
+        'timeout' => (int) env('BEEM_TIMEOUT', 15),
+    ],
 ];

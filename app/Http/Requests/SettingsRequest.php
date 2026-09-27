@@ -60,6 +60,7 @@ class SettingsRequest extends FormRequest
                 'payments_gateway' => ['required', Rule::in(['manual', 'fastlipa'])],
                 'payments_fastlipa_api_key' => ['nullable', 'string', 'max:255'],
                 'payments_fastlipa_base_url' => ['nullable', 'url', 'max:255'],
+                'payments_fastlipa_webhook_secret' => ['nullable', 'string', 'max:255'],
             ],
             'notifications' => [
                 'sms_driver' => ['required', Rule::in(['log', 'beem'])],
