@@ -36,7 +36,8 @@ class StockAdjustmentService
                     'product_id' => $product->id,
                     'direction' => $item['direction'] ?? $reason->direction() ?? 'in',
                     'quantity' => $item['quantity'],
-                    'unit_cost' => $item['unit_cost'] ?? $product->cost_price,
+                    // Only users who can see costs may set one; others always use the product cost.
+                    'unit_cost' => $user->can('products.view_cost') && isset($item['unit_cost']) && $item['unit_cost'] !== '' ? $item['unit_cost'] : $product->cost_price,
                     'batch_no' => ($item['batch_no'] ?? null) ?: null,
                     'expiry_date' => ($item['expiry_date'] ?? null) ?: null,
                     'note' => ($item['note'] ?? null) ?: null,

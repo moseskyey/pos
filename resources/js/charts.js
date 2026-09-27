@@ -51,7 +51,7 @@ function buildChart(canvas) {
             },
             scales: isRound ? {} : {
                 x: { grid: { display: cfg.horizontal, color: grid }, ticks: { color: text, maxRotation: 0, autoSkip: true, ...(cfg.horizontal && money ? { callback: (v) => formatTzs(v) } : {}) }, border: { display: false } },
-                y: { grid: { color: grid, display: !cfg.horizontal }, ticks: { color: text, callback: cfg.horizontal ? function (v) { const l = this.getLabelForValue(v); return l.length > 22 ? l.slice(0, 21) + '…' : l; } : (v) => (money ? formatTzs(v) : v) }, border: { display: false }, beginAtZero: true },
+                y: { grid: { color: grid, display: !cfg.horizontal }, ticks: { color: text, callback: cfg.horizontal ? function (v) { const l = this.getLabelForValue(v); return l.length > 22 ? l.slice(0, 21) + '…' : l; } : (v) => (money ? formatTzs(v) : v), ...(money ? {} : { precision: 0 }) }, border: { display: false }, beginAtZero: true },
             },
         },
     });

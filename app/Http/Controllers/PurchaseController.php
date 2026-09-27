@@ -149,7 +149,10 @@ class PurchaseController extends Controller
     {
         $this->authorize('create', SupplierBill::class);
         $data = $request->validated();
-        $branchId = $context->currentId() ?? $context->accessibleIds()[0];
+        $branchId = $context->currentId();
+        if (! $branchId) {
+            return back()->withInput()->with('error', __('Select a single branch in the navbar first.'));
+        }
         $bill = $this->purchases->recordBill($branchId, Supplier::findOrFail($data['supplier_id']), $data, $request->user());
 
         return redirect()->route('supplier-bills.show', $bill)->with('success', __('Bill recorded.'));
@@ -180,7 +183,10 @@ class PurchaseController extends Controller
     {
         $this->authorize('pay', SupplierBill::class);
         $data = $request->validated();
-        $branchId = $context->currentId() ?? $context->accessibleIds()[0];
+        $branchId = $context->currentId();
+        if (! $branchId) {
+            return back()->withInput()->with('error', __('Select a single branch in the navbar first.'));
+        }
         $allocations = array_filter($data['allocations'] ?? [], fn ($v) => (float) $v > 0);
         if ($request->boolean('from_drawer')) {
             $allocations['from_drawer'] = true;
@@ -240,7 +246,11 @@ class PurchaseController extends Controller
         if (! $items) {
             return back()->with('error', __('Select at least one product.'));
         }
-        $order = $this->purchases->saveOrder($context->currentId(), Supplier::findOrFail($data['supplier_id']), $items, $request->user(), ['note' => __('Created from reorder suggestions')]);
+        $branchId = $context->currentId();
+        if (! $branchId) {
+            return back()->withInput()->with('error', __('Select a single branch in the navbar first.'));
+        }
+        $order = $this->purchases->saveOrder($branchId, Supplier::findOrFail($data['supplier_id']), $items, $request->user(), ['note' => __('Created from reorder suggestions')]);
 
         return redirect()->route('purchase-orders.show', $order)->with('success', __('Draft purchase order :n created.', ['n' => $order->number]));
     }

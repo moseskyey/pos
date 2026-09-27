@@ -13,6 +13,6 @@ class SwitchBranchRequest extends FormRequest
 
     public function rules(): array
     {
-        return ['branch_id' => ['required']];
+        return ['branch_id' => ['required', 'string', 'regex:/^(all|\d+)$/']];
     }
 }

@@ -3,7 +3,7 @@
 use App\Http\Controllers\SettingsController;
 use App\Models;
 use App\Reports\ReportRegistry;
-use Database\Seeders\DatabaseSeeder;
+use Database\Seeders\TenantDatabaseSeeder;
 use Illuminate\Routing\Route;
 use Illuminate\Support\Facades\Route as Router;
 use Spatie\Permission\Models\Role;
@@ -13,8 +13,8 @@ use Spatie\Permission\Models\Role;
  * cashier, to catch runtime errors and SQL dialect issues (run it against
  * MySQL as well as SQLite).
  */
-it('renders every page with demo data', function () {
-    $this->seed(DatabaseSeeder::class);
+it('renders every page with demo data for every role', function () {
+    $this->seed(TenantDatabaseSeeder::class);
 
     $skip = ['logout', 'lock', 'up', 'storage.', 'livewire.', 'impersonate.', 'files.show', 'backups.download', 'notifications.open', 'password.reset', 'receipts.verify'];
     $models = [
@@ -63,7 +63,8 @@ it('renders every page with demo data', function () {
             return [$uri];
         })->unique()->values();
 
-    foreach (['owner@dukapos.test', 'cashier@dukapos.test'] as $email) {
+    // Every demo role: permissions and policies differ per role (e.g. managers' branch page).
+    foreach (['owner@dukapos.test', 'manager@dukapos.test', 'manager.mbezi@dukapos.test', 'cashier@dukapos.test', 'store@dukapos.test', 'accounts@dukapos.test'] as $email) {
         $this->actingAs(Models\User::where('email', $email)->firstOrFail());
         foreach ($urls as $url) {
             $status = $this->get($url)->baseResponse->getStatusCode();

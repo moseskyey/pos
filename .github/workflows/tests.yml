@@ -61,7 +61,10 @@ jobs:
       - name: Tests (MySQL)
         if: matrix.db == 'mysql'
         run: |
-          sed -e 's#<env name="DB_CONNECTION" value="sqlite"/>#<env name="DB_CONNECTION" value="mysql" force="true"/><env name="DB_HOST" value="127.0.0.1" force="true"/><env name="DB_USERNAME" value="root" force="true"/><env name="DB_PASSWORD" value="secret" force="true"/>#' \
+          # Central database dukapos_test, test business dukapos_test_tenant, businesses made in tests dukapos_test_t<id>.
+          php -r '(new PDO("mysql:host=127.0.0.1", "root", "secret"))->exec("CREATE DATABASE IF NOT EXISTS dukapos_test_tenant");'
+          sed -e 's#<env name="DB_CONNECTION" value="sqlite"/>#<env name="DB_CONNECTION" value="mysql" force="true"/><env name="DB_HOST" value="127.0.0.1" force="true"/><env name="DB_USERNAME" value="root" force="true"/><env name="DB_PASSWORD" value="secret" force="true"/><env name="TENANT_DB_PREFIX" value="dukapos_test_t" force="true"/>#' \
               -e 's#<env name="DB_DATABASE" value=":memory:"/>#<env name="DB_DATABASE" value="dukapos_test" force="true"/>#' \
+              -e 's#<env name="DB_TENANT_DATABASE" value=":memory:"/>#<env name="DB_TENANT_DATABASE" value="dukapos_test_tenant" force="true"/>#' \
               phpunit.xml > phpunit.mysql.xml
           php artisan test -c phpunit.mysql.xml

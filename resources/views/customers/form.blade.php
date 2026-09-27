@@ -8,7 +8,7 @@
                 <x-card :title="__('Contact details')" icon="bi-person">
                     <div class="row">
                         <div class="col-md-8"><x-input name="name" :label="__('Full name / business name')" :value="$customer->name" required /></div>
-                        <div class="col-md-4"><x-select name="type" :label="__('Type')" :options="['retail' => __('Retail'), 'wholesale' => __('Wholesale')]" :value="$customer->type" :help="__('Wholesale customers get wholesale prices.')" /></div>
+                        <div class="col-md-4"><x-select name="type" :label="__('Type')" :disabled="! auth()->user()->can('customers.credit')" :options="['retail' => __('Retail'), 'wholesale' => __('Wholesale')]" :value="$customer->type" :help="__('Wholesale customers get wholesale prices.')" /></div>
                         <div class="col-md-6"><x-input name="phone" :label="__('Phone')" :value="$customer->displayPhone()" placeholder="0712 345 678" prefix="<i class='bi bi-phone'></i>" /></div>
                         <div class="col-md-6"><x-input name="email" type="email" :label="__('Email')" :value="$customer->email" /></div>
                         <div class="col-md-6"><x-input name="tin" :label="__('TIN')" :value="$customer->tin" /></div>
@@ -19,9 +19,9 @@
             </div>
             <div class="col-lg-4">
                 <x-card :title="__('Credit')" icon="bi-journal-text">
-                    <x-input name="credit_limit" type="number" min="0" step="1000" :label="__('Credit limit')" :value="(float) $customer->credit_limit" prefix="TSh" :help="__('Maximum debt allowed. 0 = no credit without manager approval.')" />
+                    <x-input name="credit_limit" :disabled="! auth()->user()->can('customers.credit')" type="number" min="0" step="1000" :label="__('Credit limit')" :value="(float) $customer->credit_limit" prefix="TSh" :help="__('Maximum debt allowed. 0 = no credit without manager approval.')" />
                     @unless ($editing)
-                        <x-input name="opening_balance" type="number" min="0" :label="__('Opening balance (existing debt)')" prefix="TSh" class="mb-0" />
+                        <x-input name="opening_balance" :disabled="! auth()->user()->can('customers.credit')" type="number" min="0" :label="__('Opening balance (existing debt)')" prefix="TSh" class="mb-0" />
                     @endunless
                 </x-card>
                 <x-card :title="__('Status')" class="mt-4">

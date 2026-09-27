@@ -44,9 +44,10 @@ class CustomerController extends Controller
 
     public function store(CustomerRequest $request, CustomerLedgerService $ledger): RedirectResponse
     {
-        $customer = DB::transaction(function () use ($request, $ledger) {
-            $customer = Customer::create(Arr::except($request->validated(), ['opening_balance']) + ['opening_balance' => $request->validated('opening_balance') ?? 0]);
-            $ledger->openingBalance($customer, $request->validated('opening_balance') ?? 0);
+        $data = $request->customerData();
+        $customer = DB::transaction(function () use ($data, $ledger) {
+            $customer = Customer::create(Arr::except($data, ['opening_balance']) + ['opening_balance' => $data['opening_balance'] ?? 0]);
+            $ledger->openingBalance($customer, $data['opening_balance'] ?? 0);
 
             return $customer;
         });
@@ -90,7 +91,7 @@ class CustomerController extends Controller
 
     public function update(CustomerRequest $request, Customer $customer): RedirectResponse
     {
-        $customer->update($request->validated());
+        $customer->update($request->customerData());
 
         return redirect()->route('customers.show', $customer)->with('success', __('Customer updated.'));
     }

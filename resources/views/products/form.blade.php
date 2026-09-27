@@ -10,8 +10,8 @@
     ])->values()->all() : []);
     $initialVariants = old('variants', $product->relationLoaded('variants') ? $product->variants->map(fn ($v) => [
         'id' => $v->id, 'attributes' => (object) ($v->variant_attributes ?? []), 'sku' => $v->sku,
-        'barcode' => $v->barcodes->first()?->barcode, 'retail_price' => (float) $v->retail_price, 'cost_price' => (float) $v->cost_price, 'is_active' => $v->is_active,
-    ])->values()->all() : []);
+        'barcode' => $v->barcodes->first()?->barcode, 'retail_price' => (float) $v->retail_price, 'is_active' => $v->is_active,
+    ] + ($canCost ? ['cost_price' => (float) $v->cost_price] : []))->values()->all() : []);
     $attributeNames = collect($initialVariants)->flatMap(fn ($v) => array_keys((array) $v['attributes']))->unique()->values()->all() ?: ['Size', 'Colour'];
 @endphp
 <x-layouts.app :title="$editing ? __('Edit product') : __('New product')" :breadcrumbs="[__('Products') => route('products.index'), $editing ? $product->name : __('New')]">
@@ -21,7 +21,7 @@
           x-data="dirtyForm">
         @csrf @if ($editing) @method('PUT') @endif
         <div class="row g-4" x-data="{
-              cost: @js((float) old('cost_price', $product->cost_price ?? 0)),
+              cost: @js($canCost ? (float) old('cost_price', $product->cost_price ?? 0) : 0),
               price: @js((float) old('retail_price', $product->retail_price ?? 0)),
               baseUnit: @js((string) old('unit_id', $product->unit_id)),
               hasVariants: @js((bool) old('has_variants', $product->has_variants)),
@@ -33,7 +33,7 @@
               get margin() { return this.price > 0 ? ((this.price - this.cost) / this.price * 100) : 0 },
               ean() { const body = '2' + String(Date.now()).slice(-11); let s = 0; for (let i = 0; i < 12; i++) s += +body[i] * (i % 2 ? 3 : 1); return body + ((10 - s % 10) % 10); },
               suggestFactor(row) { const c = this.conversions.find(c => String(c.from_unit_id) === String(row.unit_id) && String(c.to_unit_id) === String(this.baseUnit)); if (c && !row.factor) { row.factor = +c.factor; if (!row.retail_price && this.price) row.retail_price = +(c.factor * this.price).toFixed(0); } },
-              addVariant() { const a = {}; this.attrs.forEach(n => a[n] = ''); this.variants.push({ id: null, attributes: a, sku: '', barcode: '', retail_price: this.price, cost_price: this.cost, is_active: true }); },
+              addVariant() { const a = {}; this.attrs.forEach(n => a[n] = ''); this.variants.push({ id: null, attributes: a, sku: '', barcode: '', retail_price: this.price, @if ($canCost) cost_price: this.cost, @endif is_active: true }); },
           }">
             <div class="col-lg-8">
                 <x-card :title="__('Basic information')" icon="bi-info-circle">

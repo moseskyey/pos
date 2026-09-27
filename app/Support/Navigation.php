@@ -58,6 +58,7 @@ class Navigation
             ]],
             ['Settings', [
                 ['Settings', 'bi-gear', 'settings.edit', 'settings.manage', 'settings.*'],
+                ['Subscription', 'bi-credit-card-2-front', 'billing.index', 'settings.manage', 'billing.*'],
                 ['Branches', 'bi-shop', 'branches.index', 'branches.view', ['branches.*', 'registers.*']],
                 ['Users', 'bi-person-badge', 'users.index', 'users.view', 'users.*'],
                 ['Roles', 'bi-shield-lock', 'roles.index', 'roles.manage', 'roles.*'],

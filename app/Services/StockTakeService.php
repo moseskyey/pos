@@ -100,7 +100,10 @@ class StockTakeService
     {
         return DB::transaction(function () use ($take, $approver) {
             $take = StockTake::withoutGlobalScopes()->lockForUpdate()->findOrFail($take->id);
-            if (! in_array($take->status, ['counting', 'submitted'], true)) {
+            if ($take->status === 'counting') {
+                throw new BusinessRuleException(__('Submit the stock take for approval before posting it.'));
+            }
+            if ($take->status !== 'submitted') {
                 throw new BusinessRuleException(__('This stock take has already been closed.'));
             }
 

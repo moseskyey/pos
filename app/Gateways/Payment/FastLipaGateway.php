@@ -6,6 +6,7 @@ use App\Contracts\PaymentGateway;
 use App\Support\Integrations\PaymentRequest;
 use App\Support\Integrations\PaymentResult;
 use App\Support\PhoneNumber;
+use App\Support\PlatformSettings;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Request;
@@ -33,9 +34,44 @@ class FastLipaGateway implements PaymentGateway
 
     protected const FAILED = ['FAILED', 'FAIL', 'CANCELLED', 'CANCELED', 'REJECTED', 'EXPIRED', 'DECLINED', 'TIMEOUT', 'INSUFFICIENT_FUNDS'];
 
+    /**
+     * Credentials default to the business's own FastLipa account (its Settings).
+     *
+     * @param  array{api_key?: ?string, base_url?: ?string, webhook_secret?: ?string, webhook_url?: ?string, name?: ?string}|null  $credentials
+     */
+    public function __construct(protected ?array $credentials = null) {}
+
+    /** The platform's own account, used for subscription payments. */
+    public static function forPlatform(): static
+    {
+        return new static([
+            'api_key' => PlatformSettings::get('fastlipa_api_key'),
+            'base_url' => PlatformSettings::get('fastlipa_base_url'),
+            'webhook_secret' => PlatformSettings::get('fastlipa_webhook_secret'),
+            'webhook_url' => route('billing.callback'),
+            'name' => PlatformSettings::get('name'),
+        ]);
+    }
+
+    protected function credential(string $key): ?string
+    {
+        if ($this->credentials !== null) {
+            return $this->credentials[$key] ?? null;
+        }
+
+        return match ($key) {
+            'api_key' => setting('payments.fastlipa_api_key'),
+            'base_url' => setting('payments.fastlipa_base_url'),
+            'webhook_secret' => setting('payments.fastlipa_webhook_secret'),
+            'webhook_url' => route('payments.callback', 'fastlipa'),
+            'name' => setting('business.name'),
+            default => null,
+        };
+    }
+
     public function supportsPush(): bool
     {
-        return (bool) setting('payments.fastlipa_api_key');
+        return (bool) $this->credential('api_key');
     }
 
     public function initiate(PaymentRequest $request): PaymentResult
@@ -44,10 +80,10 @@ class FastLipaGateway implements PaymentGateway
             'number' => PhoneNumber::normalize($request->phone),
             'amount' => (int) round((float) $request->amount),
             'reference' => $request->reference,
-            'name' => $request->description ?: setting('business.name'),
+            'name' => $request->description ?: $this->credential('name'),
         ];
         if (config('services.fastlipa.send_webhook_url')) {
-            $body['webhook_url'] = route('payments.callback', 'fastlipa');
+            $body['webhook_url'] = $this->credential('webhook_url');
         }
 
         try {
@@ -113,7 +149,7 @@ class FastLipaGateway implements PaymentGateway
         $data = is_array($payload['data'] ?? null) ? $payload['data'] : $payload;
 
         $signatureValid = true;
-        $secret = setting('payments.fastlipa_webhook_secret');
+        $secret = $this->credential('webhook_secret');
         $given = (string) $request->header(config('services.fastlipa.signature_header'), '');
         if ($secret && $given !== '') {
             // A signature that is present but wrong means the body was forged or altered.
@@ -169,8 +205,8 @@ class FastLipaGateway implements PaymentGateway
      */
     protected function client(bool $retry = false): PendingRequest
     {
-        $client = Http::baseUrl(rtrim((string) setting('payments.fastlipa_base_url', 'https://api.fastlipa.com'), '/'))
-            ->withToken((string) setting('payments.fastlipa_api_key'))
+        $client = Http::baseUrl(rtrim((string) ($this->credential('base_url') ?: 'https://api.fastlipa.com'), '/'))
+            ->withToken((string) $this->credential('api_key'))
             ->acceptJson()->asJson()
             ->timeout(config('services.fastlipa.timeout', 20));
 

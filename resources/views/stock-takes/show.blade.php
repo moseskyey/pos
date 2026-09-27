@@ -10,7 +10,7 @@
         @if ($take->status === 'counting')
             <form method="POST" action="{{ route('stock-takes.submit', $take) }}">@csrf<button class="btn btn-outline-primary"><i class="bi bi-send"></i> {{ __('Submit for approval') }}</button></form>
         @endif
-        @if (in_array($take->status, ['counting', 'submitted']))
+        @if ($take->status === 'submitted')
             @can('stock.take.approve')
                 <form method="POST" action="{{ route('stock-takes.post', $take) }}" data-confirm="{{ __('Post all counted variances to stock? This cannot be undone.') }}" data-confirm-button="{{ __('Post variances') }}">@csrf
                     <button class="btn btn-success"><i class="bi bi-check2-all"></i> {{ __('Approve & post') }}</button>

@@ -223,13 +223,18 @@ abstract class DataTable extends Component
         });
 
         $title = $this->title();
-        activity('exports')->withProperties(['table' => $title, 'format' => $format, 'rows' => count($rows)])->log("Exported $title");
+        $this->logExport($title, $format, count($rows));
 
         if ($format === 'pdf') {
             return PdfExporter::table($title, $headings, $rows, null, ['Generated' => now()->format('d/m/Y H:i')]);
         }
 
         return Excel::download(new ArrayExport($headings, $rows, $title), Str::slug($title).'-'.now()->format('Ymd-His').'.xlsx');
+    }
+
+    protected function logExport(string $title, string $format, int $rows): void
+    {
+        activity('exports')->withProperties(['table' => $title, 'format' => $format, 'rows' => $rows])->log("Exported $title");
     }
 
     protected function plain(mixed $value): mixed

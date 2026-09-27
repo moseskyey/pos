@@ -66,6 +66,16 @@ class SaleService
                 $this->flagOffline('inactive_product'); // sold offline before it was deactivated
             }
             $qty = Qty::round($line['qty'] ?? 0);
+            // Scale labels: the quantity (and label total) come from re-reading the barcode here,
+            // never from the browser.
+            $scale = null;
+            if (! empty($line['scale_barcode'])) {
+                $scale = app(ProductService::class)->findByBarcode((string) $line['scale_barcode']);
+                if (! $scale || $scale['product']->id !== $product->id || $scale['quantity'] === null || ! empty($line['product_unit_id'])) {
+                    throw new BusinessRuleException(__('Invalid scale barcode for :p.', ['p' => $product->name]));
+                }
+                $qty = Qty::round($scale['quantity']);
+            }
             if (! Qty::isPositive($qty)) {
                 throw new BusinessRuleException(__('Quantity for :p must be greater than zero.', ['p' => $product->name]));
             }
@@ -75,7 +85,7 @@ class SaleService
                 throw new BusinessRuleException(__('Invalid unit for :p.', ['p' => $product->name]));
             }
             $allowsDecimal = $unit ? $unit->unit?->allow_decimal : ($product->unit?->allow_decimal ?? false);
-            if (! $allowsDecimal && ! $product->is_weighted && Qty::cmp($qty, (string) (int) (float) $qty) !== 0) {
+            if (! $scale && ! $allowsDecimal && ! $product->is_weighted && Qty::cmp($qty, (string) (int) (float) $qty) !== 0) {
                 throw new BusinessRuleException(__(':p must be sold in whole units.', ['p' => $product->name]));
             }
 
@@ -87,9 +97,11 @@ class SaleService
                 $price = Money::round($line['unit_price']);
                 $tier = 'override';
             }
-            if (isset($line['line_total_override']) && Money::isPositive($line['line_total_override'])) {
-                // Price-embedded scale barcode: the scale printed the line total.
-                $price = Money::div($line['line_total_override'], $qty);
+            if ($scale && ! empty($scale['line_total'])) {
+                // Price-embedded label: the quantity was derived from label ÷ list price,
+                // so this only absorbs rounding and can never discount the item.
+                $price = Money::div($scale['line_total'], $qty);
+                $tier = 'scale';
             }
 
             $factor = $unit ? (string) $unit->factor : '1';

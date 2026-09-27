@@ -4,6 +4,7 @@ namespace App\Http\Requests;
 
 use App\Models\PurchaseOrder;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class ReorderOrderRequest extends FormRequest
 {
@@ -17,7 +18,7 @@ class ReorderOrderRequest extends FormRequest
         return [
             'supplier_id' => ['required', 'exists:suppliers,id'],
             'items' => ['required', 'array'],
-            'items.*.product_id' => ['required', 'exists:products,id'],
+            'items.*.product_id' => ['required', 'integer', Rule::exists('products', 'id')->whereNull('deleted_at')],
             'items.*.quantity' => ['required', 'numeric', 'min:0'],
             'items.*.unit_cost' => ['required', 'numeric', 'min:0'],
             'items.*.selected' => ['nullable', 'boolean'],

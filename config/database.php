@@ -3,7 +3,7 @@
 use Illuminate\Support\Str;
 use Pdo\Mysql;
 
-return [
+$config = [
 
     /*
     |--------------------------------------------------------------------------
@@ -17,7 +17,10 @@ return [
     |
     */
 
-    'default' => env('DB_CONNECTION', 'sqlite'),
+    // DukaPOS is multi-tenant: "central" holds businesses, plans, billing and
+    // platform admins; "tenant" is pointed at one business's own database per
+    // request (App\Tenancy\TenantManager). Both use the DB_CONNECTION driver.
+    'default' => 'central',
 
     /*
     |--------------------------------------------------------------------------
@@ -182,3 +185,13 @@ return [
     ],
 
 ];
+
+$driver = env('DB_CONNECTION', 'sqlite');
+$config['connections']['central'] = $config['connections'][$driver];
+// The business database is set when a business is identified. In tests,
+// DB_TENANT_DATABASE points it at a dedicated test database.
+$config['connections']['tenant'] = array_merge($config['connections'][$driver], [
+    'database' => env('DB_TENANT_DATABASE'),
+]);
+
+return $config;

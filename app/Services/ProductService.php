@@ -191,6 +191,16 @@ class ProductService
                 continue;
             }
             $label = collect($attributes)->join(' / ');
+            $variant = ! empty($row['id']) ? $parent->variants()->find($row['id']) : null;
+            // Same rules as the parent product: prices need products.edit_price, cost needs products.view_cost.
+            // Without them a variant keeps its current values (or inherits the parent's when new).
+            if (! $user->can('products.edit_price')) {
+                $row['retail_price'] = $variant?->retail_price ?? $parent->retail_price;
+                $row['wholesale_price'] = $variant ? $variant->wholesale_price : $parent->wholesale_price;
+            }
+            if (! $user->can('products.view_cost')) {
+                $row['cost_price'] = $variant?->cost_price ?? $parent->cost_price;
+            }
             $payload = array_merge($parent->only(self::COPY_TO_VARIANTS), [
                 'parent_id' => $parent->id,
                 'name' => $parent->name.' - '.$label,
@@ -203,7 +213,6 @@ class ProductService
                 'has_variants' => false,
             ]);
 
-            $variant = ! empty($row['id']) ? $parent->variants()->find($row['id']) : null;
             if ($variant) {
                 $before = $variant->only(self::PRICE_FIELDS);
                 if (! empty($row['sku'])) {

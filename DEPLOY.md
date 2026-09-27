@@ -1,6 +1,7 @@
 # Deploying DukaPOS
 
-This guide installs DukaPOS on a fresh **Ubuntu 22.04 / 24.04** VPS. The stack is Nginx, PHP 8.4-FPM, MySQL 8,
+This guide installs DukaPOS on a fresh **Ubuntu 22.04 / 24.04** VPS. The stack is Nginx, PHP 8.4-FPM, MySQL 8
+(MariaDB 10.11+ works too),
 Supervisor for the queue worker, cron for the scheduler, and Let's Encrypt for SSL. Replace `pos.example.co.tz`
 with your domain, and `CHANGE_ME` with strong passwords.
 
@@ -34,14 +35,21 @@ sudo timedatectl set-timezone Africa/Dar_es_Salaam
 
 ## 2. Database
 
+DukaPOS keeps one **central** database (businesses, plans, subscriptions, platform admins) and gives every
+business **its own database**, created automatically when the business signs up (`dukapos_t1`, `dukapos_t2`, …).
+The database user therefore needs permission to create databases with that prefix:
+
 ```bash
 sudo mysql <<'SQL'
 CREATE DATABASE dukapos CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 CREATE USER 'dukapos'@'localhost' IDENTIFIED BY 'CHANGE_ME';
 GRANT ALL PRIVILEGES ON dukapos.* TO 'dukapos'@'localhost';
+GRANT ALL PRIVILEGES ON `dukapos\_t%`.* TO 'dukapos'@'localhost';   -- one database per business
 FLUSH PRIVILEGES;
 SQL
 ```
+
+The prefix is `TENANT_DB_PREFIX` in `.env` (default `dukapos_t`). If you change it, change the `GRANT` to match.
 
 ## 3. Application
 
@@ -87,11 +95,12 @@ BACKUP_DISKS=local          # add s3 (and AWS_* values) to keep an off-site copy
 BACKUP_NOTIFY_EMAIL=owner@example.co.tz
 ```
 
-Migrate, create your owner account and first branch (you will be prompted), then build the assets:
+Migrate the central database, create your **platform admin** account (you will be prompted), then build the assets:
 
 ```bash
 php artisan migrate --force
-php artisan dukapos:create-owner          # creates roles, the first branch + till, and the owner login
+php artisan db:seed --force                # starter subscription plans (editable later)
+php artisan dukapos:create-admin           # the platform admin: manages every business and subscription
 php artisan storage:link
 
 npm ci && npm run build
@@ -102,13 +111,27 @@ sudo chown -R $USER:www-data storage bootstrap/cache
 sudo chmod -R ug+rwX storage bootstrap/cache
 ```
 
-Sign in, then set up the rest in the app:
-- **Settings → Business profile**: name, TIN/VRN, logo.
-- **Branches**: more branches and tills.
-- **Users**: your staff.
+Then:
+1. Sign in at `https://pos.example.co.tz/admin` with the admin account.
+2. Under **Settings**, set the trial length, grace period, support contacts and (optionally) your FastLipa account
+   for subscription payments. Under **Plans**, adjust prices and limits.
+3. Businesses sign up themselves at `/register`, or you add one under **Businesses → Add business**
+   (or `php artisan tenants:create`). Each gets its own database, a first branch and till, and an owner login.
 
-> Want to try it with sample data first? Set `APP_ENV=demo` and run `php artisan migrate:fresh --seed`.
+Business owners then set up the rest in their own account: **Settings → Business profile** (name, TIN/VRN, logo),
+**Branches**, **Users**.
+
+> Want to try it with sample data first? Set `APP_ENV=demo` and run `php artisan migrate:fresh --seed`. It creates
+> the admin `admin@dukapos.test` (password `password`) and a demo business with a year of demo data.
 > Never do this on a live database.
+
+### Upgrading an install from before multi-business
+
+Just run `./deploy.sh` (section 12). On the first deploy it runs `php artisan tenants:adopt --auto`, which turns the
+existing shop into business #1 **in place**: nothing is moved or copied, its users sign in as before, printed
+receipt QR codes and old WhatsApp links keep working, and so does the old FastLipa callback URL. The shop starts on a
+normal trial; give it a paid period from **Admin → Businesses → Record a payment** (or adopt manually with
+`php artisan tenants:adopt --paid-until=2027-12-31`). Then create your admin with `php artisan dukapos:create-admin`.
 
 ## 4. Nginx
 
@@ -208,22 +231,36 @@ sudo crontab -u www-data -e
 * * * * * cd /var/www/dukapos && php artisan schedule:run >> /dev/null 2>&1
 ```
 
-The scheduler runs:
+The scheduler runs (per-business jobs run once for every business through `tenants:run`):
 
 | Time | Job |
 |---|---|
-| every minute | `dukapos:reconcile-payments`: re-checks mobile money payments stuck in pending |
-| 01:00 | `backup:clean`: removes backups older than `BACKUP_KEEP_DAYS` |
-| 01:30 | `backup:run --only-db`: nightly database backup |
+| every minute | `tenants:run dukapos:reconcile-payments`: re-checks each business's mobile money payments stuck in pending |
+| every minute | `billing:reconcile`: re-checks subscription payments to the platform |
+| 01:00 | `tenants:run backup:clean`: removes business backups older than `BACKUP_KEEP_DAYS` |
+| 01:30 | `tenants:run "backup:run --only-db"`: nightly backup of every business database |
+| 03:00 | `platform:backup`: nightly backup of the central database |
 | 06:00 | `dukapos:recurring-expenses`: posts rent, salaries, LUKU and similar when they fall due |
 | 07:00 | `dukapos:stock-alerts`: low-stock and expiry alerts |
-| 09:00 | `backup:monitor`: alerts if the latest backup is too old |
+| 09:00 | `platform:backup --monitor`: alerts if the latest platform backup is too old |
+| 09:15 | `billing:reminders`: tells owners 7, 3 and 1 days before their trial or subscription ends |
 | Monday 08:00 | `dukapos:debt-alerts`: overdue customer debts |
+
+Stock, expense and debt jobs skip businesses whose subscription has ended.
+
+Useful commands:
+
+```bash
+php artisan tenants:migrate --force                      # migrate every business database (deploy.sh does this)
+php artisan tenants:run "dukapos:stock-alerts" --tenant=4  # any command, for one or all businesses
+php artisan tenants:create                               # add a business from the command line
+```
 
 ## 8. Backups
 
-Backups are stored under `storage/app/private/dukapos/` on the `local` disk and can be downloaded from
-**Settings → Backups**. They need the database dump tool on the server:
+Each business has its own backups under `storage/app/private/tenants/<id>/dukapos-<id>/`, which its owner can
+download from **Settings → Backups**. A business's backup holds only its own database and files. The central
+database is backed up to `storage/app/private/dukapos-platform/`. Backups need the database dump tool on the server:
 
 ```bash
 sudo apt install -y mysql-client     # provides mysqldump (sqlite3 if you run on SQLite)
@@ -233,20 +270,24 @@ sudo apt install -y mysql-client     # provides mysqldump (sqlite3 if you run on
 - add an S3-compatible disk (AWS S3, DigitalOcean Spaces or Wasabi): fill in the `AWS_*` values and set `BACKUP_DISKS=local,s3`, or
 - download the latest backup from the Backups page every week.
 
-To restore from a backup:
+To restore one business (its database name is shown on its page in the admin panel):
 
 ```bash
 unzip 2026-01-01-01-30-00.zip -d /tmp/restore
-mysql -u dukapos -p dukapos < /tmp/restore/db-dumps/mysql-dukapos.sql
+mysql -u dukapos -p dukapos_t4 < /tmp/restore/db-dumps/*.sql
 ```
+
+Restore the central database the same way into `dukapos` from a `dukapos-platform` backup.
 
 ## 9. Mobile money & SMS
 
 - **FastLipa**:
   1. Under **Settings → Payment methods**, enter your FastLipa secret token as the API key, keep the base URL
      `https://api.fastlipa.com`, and set the gateway to FastLipa.
-  2. DukaPOS sends its webhook URL (`https://pos.example.co.tz/api/payments/callback/fastlipa`) with every payment
-     request. If your FastLipa dashboard also has a webhook setting, use the same URL there.
+  2. DukaPOS sends the business's own webhook URL (`https://pos.example.co.tz/api/payments/callback/fastlipa/<business id>`,
+     shown on the same settings page) with every payment request. If the FastLipa dashboard also has a webhook
+     setting, use that URL there. The old URL without the business ID still works for a business adopted from a
+     single-shop install.
   3. Make sure the queue worker (§6) and the scheduler (§7) are running. Webhooks are acknowledged immediately and
      then confirmed against FastLipa's status API on the queue, so a forged webhook can never mark a payment paid.
   4. FastLipa can report a payment as **failed** and then **completed** a few minutes later. DukaPOS keeps
@@ -258,7 +299,25 @@ mysql -u dukapos -p dukapos < /tmp/restore/db-dumps/mysql-dukapos.sql
 
 Callbacks are logged in the `payment_callbacks` table. To replay one: `php artisan payments:replay-callback {id}`.
 
-## 10. Offline till, receipt printers and US dollars
+## 10. Subscriptions and the platform admin
+
+- **Plans, trials and grace:** set under **Admin → Plans** and **Admin → Settings**. A business can work during its
+  trial, while paid up, and for the grace period after expiry; after that every page leads to its **Subscription**
+  page until it renews. Nothing is ever deleted when a subscription ends.
+- **Paying by mobile money:** enter the platform's own FastLipa API key under **Admin → Settings → Subscription
+  payments** and switch it on. Owners then pay from **Settings → Subscription** with an STK push. Webhooks go to
+  `https://pos.example.co.tz/api/billing/callback/fastlipa`, are confirmed against FastLipa's status API before they
+  count, and `billing:reconcile` picks up anything a webhook missed.
+- **Cash or bank payments:** record them on the business's page (**Record a payment**). The subscription is extended
+  from the current paid-until date, and the owner can download the invoice.
+- **Support:** from a business's page you can extend access, change the plan, suspend or restore it, reset a user's
+  password, deactivate users, or **Login as owner** to see what they see (logged in both activity logs).
+- **Plan limits** (branches, active users, products) apply as soon as a plan is assigned; leave a limit empty for
+  unlimited.
+- More admins: **Admin → Admins**. Support admins manage businesses and payments; only super admins can change
+  settings, FastLipa keys, admins and refunds.
+
+## 11. Offline till, receipt printers and US dollars
 
 - **HTTPS is required** for the offline till (service workers) and for direct printing (WebUSB/WebSerial).
   Section 5 covers this. On a local network without a domain, use the browser on the same machine through
@@ -276,21 +335,24 @@ Callbacks are logged in the `payment_callbacks` table. To replay one: `php artis
 - **US dollars:** set the rate under Settings → Currency & tax, then turn on *Cash (USD)* under Payment methods.
   Update the rate whenever it changes; each payment stores the rate it used.
 
-## 11. Updating
+## 12. Updating
 
 Use `deploy.sh` from the project root to update the app. It enables maintenance mode, pulls the code, installs
-dependencies, migrates, builds assets, rebuilds the caches and restarts the queue workers:
+dependencies, migrates the central database and every business database, builds assets, rebuilds the caches and
+restarts the queue workers:
 
 ```bash
 cd /var/www/dukapos && ./deploy.sh            # deploys the current branch
 ./deploy.sh main                              # or a specific branch
 ```
 
-## 12. Hardening checklist
+## 13. Hardening checklist
 
 - `APP_DEBUG=false` and `APP_ENV=production`. Lazy-loading guards and debug output are then off.
 - Keep `.env` readable only by the deploy user and `www-data`: `chmod 640 .env`.
 - Firewall: `sudo ufw allow OpenSSH && sudo ufw allow 'Nginx Full' && sudo ufw enable`.
 - Ask every owner and manager to enable two-factor authentication (My profile → Two-factor authentication) and to set a PIN.
+- Give platform admins long, unique passwords (at least 10 characters), keep super admins to a minimum, and review
+  **Admin → Activity log** regularly.
 - Review **Settings → Activity log** regularly for voids, price overrides and below-cost sales.
 - Test a restore from backup every quarter.

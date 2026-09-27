@@ -83,6 +83,7 @@ return [
         'Customers' => [
             'customers.view' => 'View customers',
             'customers.manage' => 'Create / edit customers',
+            'customers.credit' => 'Set credit limits, wholesale status and opening balances',
             'customers.payments' => 'Receive customer payments',
         ],
         'Purchases' => [

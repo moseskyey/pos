@@ -23,9 +23,14 @@ class SettingsService
             return $this->loaded;
         }
 
+        // Settings belong to a business; outside one (platform admin, console) only defaults apply.
+        if (! tenant()) {
+            return config('dukapos.settings', []);
+        }
+
         $stored = [];
         try {
-            $stored = Cache::rememberForever(static::CACHE_KEY, function () {
+            $stored = Cache::rememberForever($this->cacheKey(), function () {
                 if (! Schema::hasTable('settings')) {
                     return [];
                 }
@@ -62,8 +67,20 @@ class SettingsService
 
     public function flush(): void
     {
-        Cache::forget(static::CACHE_KEY);
+        Cache::forget($this->cacheKey());
         $this->loaded = null;
+    }
+
+    /** Forget the in-memory copy only (after switching business). */
+    public function reset(): void
+    {
+        $this->loaded = null;
+    }
+
+    /** Per business, so cache stores without a key prefix (file) never mix businesses. */
+    protected function cacheKey(): string
+    {
+        return static::CACHE_KEY.'.t'.tenant()?->getKey();
     }
 
     public function isEncrypted(string $key): bool

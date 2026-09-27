@@ -27,9 +27,19 @@ class SupplierPaymentService
         }
 
         return DB::transaction(function () use ($supplier, $amount, $method, $user, $branchId, $allocations, $reference, $note, $paidAt) {
+            // Same rules as expenses: cash only, an open shift, and enough cash in the drawer.
             $shift = null;
-            if ($method === PaymentMethod::Cash && ! empty($allocations['from_drawer'])) {
+            if (! empty($allocations['from_drawer'])) {
+                if ($method !== PaymentMethod::Cash) {
+                    throw new BusinessRuleException(__('Only cash payments can be taken from the drawer.'));
+                }
                 $shift = $this->shifts->current($user, $branchId);
+                if (! $shift) {
+                    throw new BusinessRuleException(__('Open a shift to pay from the cash drawer.'));
+                }
+                if (Money::gt($amount, $this->shifts->expectedCash($shift))) {
+                    throw new BusinessRuleException(__('Not enough cash in the drawer.'));
+                }
             }
             unset($allocations['from_drawer']);
 

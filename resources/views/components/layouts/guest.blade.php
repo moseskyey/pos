@@ -5,7 +5,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>{{ $title ? $title.' · ' : '' }}{{ setting('business.name', 'DukaPOS') }}</title>
+    <title>{{ $title ? $title.' · ' : '' }}{{ tenant() ? setting('business.name', 'DukaPOS') : \App\Support\PlatformSettings::get('name', 'DukaPOS') }}</title>
     <link rel="icon" href="{{ asset('favicon.svg') }}" type="image/svg+xml">
     <script>(function(){try{var t=localStorage.getItem('dp-theme');if(t)document.documentElement.setAttribute('data-bs-theme',t);}catch(e){}})();</script>
     @vite(['resources/js/app.js'])
@@ -82,7 +82,7 @@
                 </div>
             </div>
             {{ $slot }}
-            <p class="text-center small text-body-secondary mt-5 mb-0">&copy; {{ date('Y') }} {{ setting('business.name') }} · DukaPOS v{{ config('dukapos.version') }}</p>
+            <p class="text-center small text-body-secondary mt-5 mb-0">&copy; {{ date('Y') }} {{ tenant() ? setting('business.name') : \App\Support\PlatformSettings::get('name', 'DukaPOS') }} · DukaPOS v{{ config('dukapos.version') }}</p>
         </div>
     </section>
 </div>

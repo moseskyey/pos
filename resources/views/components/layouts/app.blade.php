@@ -19,7 +19,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     @auth
-        <meta name="dp-user" content="{{ auth()->id() }}">
+        <meta name="dp-user" content="{{ device_key() }}">
+        @if ($legacyKey = legacy_device_key())<meta name="dp-legacy-user" content="{{ $legacyKey }}">@endif
         <meta name="dp-offline-ping" content="{{ route('pos.offline.ping') }}">
         <meta name="dp-offline-sync" content="{{ route('pos.offline.sync') }}">
         @if ($pos)<meta name="dp-sw" content="{{ asset('sw.js') }}">@endif
@@ -213,6 +214,9 @@
                     <li><hr class="dropdown-divider"></li>
                     <li><a class="dropdown-item" href="{{ route('profile.edit') }}"><i class="bi bi-person"></i> {{ __('My profile') }}</a></li>
                     <li><a class="dropdown-item" href="{{ route('notifications.index') }}"><i class="bi bi-bell"></i> {{ __('Notifications') }}</a></li>
+                    @if (tenant() && $user->can('settings.manage'))
+                        <li><a class="dropdown-item" href="{{ route('billing.index') }}"><i class="bi bi-credit-card-2-front"></i> {{ __('Subscription & billing') }}</a></li>
+                    @endif
                     @if (session('impersonator_id'))
                         <li>
                             <form method="POST" action="{{ route('impersonate.leave') }}">@csrf
@@ -239,7 +243,15 @@
             </div>
         @endif
 
+        @include('partials.platform-banners', ['user' => $user])
+
         <main id="main" class="app-content">
+        @if ($user?->hasRole('owner') && ($envWarnings = \App\Support\Environment::warnings(request()->getHost())))
+            <div class="alert alert-danger rounded-0 mb-0 small no-print" role="alert">
+                <i class="bi bi-shield-exclamation"></i> <strong>{{ __('Server configuration needs attention:') }}</strong>
+                {{ implode(' ', $envWarnings) }} <span class="text-body-secondary">{{ __('Then run: php artisan config:cache') }}</span>
+            </div>
+        @endif
             {{ $slot }}
         </main>
 

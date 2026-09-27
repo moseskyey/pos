@@ -19,7 +19,7 @@ class StockAdjustmentRequest extends FormRequest
             'reason' => ['required', Rule::enum(AdjustmentReason::class)],
             'note' => ['nullable', 'string', 'max:500'],
             'items' => ['required', 'array', 'min:1'],
-            'items.*.product_id' => ['required', 'exists:products,id'],
+            'items.*.product_id' => ['required', 'integer', Rule::exists('products', 'id')->whereNull('deleted_at')],
             'items.*.direction' => ['required', Rule::in(['in', 'out'])],
             'items.*.quantity' => ['required', 'numeric', 'gt:0', 'max:9999999'],
             'items.*.unit_cost' => ['nullable', 'numeric', 'min:0'],

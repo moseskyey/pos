@@ -8,8 +8,36 @@
  * - A service worker (public/sw.js) keeps the offline till page and the built
  *   assets available without a connection.
  */
+// userId is the device key "<business>-<user>" (user IDs repeat across businesses).
 const qKey = (userId) => `dp-offline-queue-${userId}`;
 const cKey = (userId) => `dp-offline-catalog-${userId}`;
+
+/**
+ * Before multi-business, keys used the bare user ID. For the adopted business
+ * the server names that old key, and anything stored under it moves across
+ * once (unsynced offline sales must never be stranded).
+ */
+(function migrateLegacyKeys() {
+    const current = document.querySelector('meta[name="dp-user"]')?.content;
+    const legacy = document.querySelector('meta[name="dp-legacy-user"]')?.content;
+    if (!current || !legacy || current === legacy) return;
+    try {
+        for (const prefix of ['dp-offline-queue-', 'dp-offline-catalog-', 'dp-pos-cart-']) {
+            const old = localStorage.getItem(prefix + legacy);
+            if (old === null) continue;
+            const now = localStorage.getItem(prefix + current);
+            if (now === null) {
+                localStorage.setItem(prefix + current, old);
+            } else if (prefix === 'dp-offline-queue-') {
+                // Both exist: keep every unsynced sale (client_id makes the merge safe).
+                const merged = [...JSON.parse(now), ...JSON.parse(old)];
+                const seen = new Set();
+                localStorage.setItem(prefix + current, JSON.stringify(merged.filter((s) => !seen.has(s.client_id) && seen.add(s.client_id))));
+            }
+            localStorage.removeItem(prefix + legacy);
+        }
+    } catch (e) { /* storage unavailable */ }
+})();
 
 const store = {
     get(key, fallback) {

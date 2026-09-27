@@ -79,7 +79,7 @@ class DocumentForm extends Component
 
         foreach ($prefill as $line) {
             if ($product = Product::with('unit')->find($line['product_id'])) {
-                $this->items[] = $this->row($product, (float) $line['quantity'], (float) ($line['unit_cost'] ?? $product->cost_price));
+                $this->items[] = $this->row($product, (float) $line['quantity'], (float) ($line['unit_cost'] ?? $this->knownCost($product)));
             }
         }
     }
@@ -103,7 +103,13 @@ class DocumentForm extends Component
             }
         }
         $product = Product::with('unit')->findOrFail($productId);
-        $this->items[] = $this->row($product, (float) ($quantity ?? 1), (float) $product->cost_price);
+        $this->items[] = $this->row($product, (float) ($quantity ?? 1), $this->knownCost($product));
+    }
+
+    /** Current cost as a starting value, only for users allowed to see costs. */
+    protected function knownCost(Product $product): float
+    {
+        return auth()->user()->can('products.view_cost') ? (float) $product->cost_price : 0.0;
     }
 
     public function removeItem(int $i): void

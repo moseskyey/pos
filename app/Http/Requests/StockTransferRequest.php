@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class StockTransferRequest extends FormRequest
 {
@@ -18,7 +19,7 @@ class StockTransferRequest extends FormRequest
             'to_branch_id' => ['required', 'exists:branches,id', 'different:from_branch_id'],
             'note' => ['nullable', 'string', 'max:500'],
             'items' => ['required', 'array', 'min:1'],
-            'items.*.product_id' => ['required', 'exists:products,id'],
+            'items.*.product_id' => ['required', 'integer', Rule::exists('products', 'id')->whereNull('deleted_at')],
             'items.*.quantity' => ['required', 'numeric', 'gt:0', 'max:9999999'],
         ];
     }

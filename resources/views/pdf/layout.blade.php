@@ -33,11 +33,12 @@
     </style>
 </head>
 <body>
-@php $logo = setting('business.logo') && \Illuminate\Support\Facades\Storage::disk('local')->exists(setting('business.logo')) ? 'data:image/png;base64,'.base64_encode(\Illuminate\Support\Facades\Storage::disk('local')->get(setting('business.logo'))) : null; @endphp
+@php $businessName = tenant() ? setting('business.name') : \App\Support\PlatformSettings::get('name', 'DukaPOS'); @endphp
+@php $logo = tenant() && setting('business.logo') && \Illuminate\Support\Facades\Storage::disk('local')->exists(setting('business.logo')) ? 'data:image/png;base64,'.base64_encode(\Illuminate\Support\Facades\Storage::disk('local')->get(setting('business.logo'))) : null; @endphp
 <div class="header">
     <div class="left">
         @if ($logo)<img src="{{ $logo }}" style="max-height:48px;margin-bottom:4px"><br>@endif
-        <div class="brand">{{ setting('business.name') }}</div>
+        <div class="brand">{{ $businessName }}</div>
         <div class="muted">
             {{ ($branch ?? null)?->address ?? setting('business.address') }}<br>
             @if (setting('business.phone') || ($branch ?? null)?->phone){{ __('Tel') }}: {{ ($branch ?? null)?->phone ?? setting('business.phone') }}<br>@endif
@@ -51,6 +52,6 @@
     </div>
 </div>
 @yield('content')
-<div class="footer">{{ setting('business.name') }} · {{ __('Generated') }} {{ now()->format('d/m/Y H:i') }} · DukaPOS</div>
+<div class="footer">{{ $businessName }} · {{ __('Generated') }} {{ now()->format('d/m/Y H:i') }} · DukaPOS</div>
 </body>
 </html>

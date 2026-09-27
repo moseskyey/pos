@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Console\Commands\Concerns\RequiresTenant;
 use App\Models\Customer;
 use App\Notifications\SystemAlert;
 use App\Services\AlertService;
@@ -11,12 +12,18 @@ use Illuminate\Console\Command;
 
 class DebtAlerts extends Command
 {
+    use RequiresTenant;
+
     protected $signature = 'dukapos:debt-alerts';
 
     protected $description = 'Notify managers about customer debts overdue by more than 30 days';
 
     public function handle(CustomerStatementService $statements, AlertService $alerts): int
     {
+        if ($this->missingTenant()) {
+            return self::FAILURE;
+        }
+
         $overdue = Customer::query()->where('balance', '>', 0)->get()
             ->map(fn ($c) => ['customer' => $c, 'overdue' => Money::add(...array_values(array_intersect_key($statements->aging($c), array_flip(['31_60', '61_90', 'over_90']))))])
             ->filter(fn ($row) => Money::isPositive($row['overdue']));
