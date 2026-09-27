@@ -1,6 +1,6 @@
 # Deploying DukaPOS
 
-This guide installs DukaPOS on a fresh **Ubuntu 22.04 / 24.04** VPS. The stack is Nginx, PHP 8.3-FPM, MySQL 8,
+This guide installs DukaPOS on a fresh **Ubuntu 22.04 / 24.04** VPS. The stack is Nginx, PHP 8.4-FPM, MySQL 8,
 Supervisor for the queue worker, cron for the scheduler, and Let's Encrypt for SSL. Replace `pos.example.co.tz`
 with your domain, and `CHANGE_ME` with strong passwords.
 
@@ -14,16 +14,16 @@ A 1 vCPU / 2 GB RAM server comfortably runs several branches.
 sudo apt update && sudo apt upgrade -y
 sudo apt install -y software-properties-common curl git unzip nginx mysql-server supervisor certbot python3-certbot-nginx
 
-# PHP 8.3 (Ubuntu 24.04 ships it; on 22.04 add the ondrej/php PPA first)
-sudo add-apt-repository -y ppa:ondrej/php   # 22.04 only
-sudo apt install -y php8.3-fpm php8.3-cli php8.3-mysql php8.3-mbstring php8.3-xml php8.3-curl \
-    php8.3-zip php8.3-gd php8.3-intl php8.3-bcmath
+# PHP 8.4 (required by the locked Symfony 8 / spatie packages; Ubuntu ships 8.3, so add the ondrej/php PPA)
+sudo add-apt-repository -y ppa:ondrej/php && sudo apt update
+sudo apt install -y php8.4-fpm php8.4-cli php8.4-mysql php8.4-mbstring php8.4-xml php8.4-curl \
+    php8.4-zip php8.4-gd php8.4-intl php8.4-bcmath
 
 # Composer
 curl -sS https://getcomposer.org/installer | php && sudo mv composer.phar /usr/local/bin/composer
 
-# Node.js 20 (only needed to build CSS/JS)
-curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash - && sudo apt install -y nodejs
+# Node.js 22 (only needed to build CSS/JS)
+curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash - && sudo apt install -y nodejs
 ```
 
 Set the server timezone so logs and cron match your shop's hours:
@@ -139,7 +139,7 @@ server {
     }
 
     location ~ \.php$ {
-        fastcgi_pass unix:/run/php/php8.3-fpm.sock;
+        fastcgi_pass unix:/run/php/php8.4-fpm.sock;
         fastcgi_param SCRIPT_FILENAME $realpath_root$fastcgi_script_name;
         include fastcgi_params;
         fastcgi_hide_header X-Powered-By;

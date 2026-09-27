@@ -28,7 +28,7 @@ DukaPOS is a web-based, multi-branch Point of Sale and inventory system for Tanz
 
 | Layer | Choice |
 |---|---|
-| Backend | Laravel 13 (latest stable), PHP 8.3+ |
+| Backend | Laravel 13 (latest stable), PHP 8.4+ (Symfony 8 / spatie dependencies need 8.4) |
 | Database | MySQL 8 (InnoDB, utf8mb4) |
 | Frontend | Blade + **Bootstrap 5.3** (SCSS, custom theme) + **Livewire 4** + Alpine.js |
 | Icons | Bootstrap Icons |
@@ -331,7 +331,7 @@ tests/Feature  tests/Unit
 ---
 
 ## 12. Deployment Target (for docs in Phase 8)
-- Ubuntu 22.04/24.04 VPS, Nginx, PHP 8.3-FPM, MySQL 8, Supervisor (queue worker), cron (`schedule:run` every minute), Let's Encrypt SSL.
+- Ubuntu 22.04/24.04 VPS, Nginx, PHP 8.4-FPM, MySQL 8, Supervisor (queue worker), cron (`schedule:run` every minute), Let's Encrypt SSL.
 - Provide `DEPLOY.md` with exact commands, an Nginx server block, Supervisor config, cron line, backup schedule, and an update script (`deploy.sh`: pull, composer, migrate --force, build, cache, restart queue).
 
 ---

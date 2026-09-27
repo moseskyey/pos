@@ -22,8 +22,8 @@ Or download the ZIP from GitHub (**Code → Download ZIP**) and extract it.
 
 ## Quick start (local, SQLite: no database server needed)
 
-Requirements: **PHP 8.3+** (extensions: `pdo_sqlite` or `pdo_mysql`, `mbstring`, `intl`, `gd`, `zip`, `bcmath`
-optional), **Composer 2**, **Node.js 20+**.
+Requirements: **PHP 8.4+** (extensions: `pdo_sqlite` or `pdo_mysql`, `mbstring`, `intl`, `gd`, `zip`, `bcmath`
+optional), **Composer 2**, **Node.js 22+** (or 20.19+).
 
 ```bash
 composer run setup      # install PHP + JS deps, create .env, key, SQLite DB, migrate + demo data, build assets
@@ -161,7 +161,7 @@ backups. Updates after the first install use `./deploy.sh`.
 
 ## Tech stack
 
-Laravel 13 · PHP 8.3+ · Livewire 4 + Alpine.js · Bootstrap 5.3 (custom SCSS theme, Inter, Bootstrap Icons) ·
+Laravel 13 · PHP 8.4+ · Livewire 4 + Alpine.js · Bootstrap 5.3 (custom SCSS theme, Inter, Bootstrap Icons) ·
 Chart.js · Tom Select · Vite · MySQL 8 / MariaDB (SQLite for local use) · spatie/laravel-permission ·
 spatie/laravel-activitylog · spatie/laravel-backup · maatwebsite/excel · barryvdh/laravel-dompdf · Pest.
 
