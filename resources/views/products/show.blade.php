@@ -1,0 +1,225 @@
+@php
+    $canCost = auth()->user()->can('products.view_cost');
+    $totalStock = $stocks->sum('quantity');
+@endphp
+<x-layouts.app :title="$product->name" :breadcrumbs="[__('Products') => route('products.index'), $product->name]">
+    <div class="page-header">
+        <div class="d-flex align-items-center gap-3 min-w-0">
+            <div class="rounded-4 bg-white border d-grid flex-shrink-0 overflow-hidden" style="width:72px;height:72px;place-items:center">
+                @if ($product->image_path)
+                    <img src="{{ $product->imageUrl() }}" alt="" style="width:100%;height:100%;object-fit:cover">
+                @else
+                    <i class="bi bi-box-seam fs-2 text-body-secondary"></i>
+                @endif
+            </div>
+            <div class="min-w-0">
+                <h2 class="text-truncate">{{ $product->name }}</h2>
+                <div class="d-flex flex-wrap gap-2 mt-1 align-items-center small">
+                    <span class="badge text-bg-secondary-soft font-monospace">{{ $product->sku }}</span>
+                    <x-status-badge :status="$product->is_active ? 'active' : 'inactive'" />
+                    @if ($product->category)<span class="text-body-secondary"><i class="bi bi-tag"></i> {{ $product->category->fullName() }}</span>@endif
+                    @if ($product->brand)<span class="text-body-secondary"><i class="bi bi-award"></i> {{ $product->brand->name }}</span>@endif
+                    @if ($product->parent)<a href="{{ route('products.show', $product->parent) }}" class="text-decoration-none"><i class="bi bi-diagram-2"></i> {{ __('Variant of :name', ['name' => $product->parent->name]) }}</a>@endif
+                </div>
+            </div>
+        </div>
+        <div class="page-actions">
+            @can('products.labels')
+                <a href="{{ route('labels.index', ['products' => $product->has_variants ? $product->variants->pluck('id')->join(',') : $product->id]) }}" class="btn btn-outline-secondary"><i class="bi bi-upc"></i> {{ __('Labels') }}</a>
+            @endcan
+            @can('products.create')
+                <a href="{{ route('products.create', ['copy' => $product->id]) }}" class="btn btn-outline-secondary"><i class="bi bi-copy"></i> {{ __('Duplicate') }}</a>
+            @endcan
+            @can('update', $product)
+                <a href="{{ route('products.edit', $product->parent ?? $product) }}" class="btn btn-primary"><i class="bi bi-pencil"></i> {{ __('Edit') }}</a>
+            @endcan
+            @can('delete', $product)
+                <form method="POST" action="{{ route('products.destroy', $product) }}" data-confirm="{{ __('Archive this product? It will no longer be available for sale.') }}">@csrf @method('DELETE')
+                    <button class="btn btn-soft-danger" title="{{ __('Archive') }}"><i class="bi bi-archive"></i></button>
+                </form>
+            @endcan
+        </div>
+    </div>
+
+    <div class="row g-3 mb-4">
+        <div class="col-sm-6 col-xl-3"><x-stat-card :label="__('Retail price')" :value="$product->has_variants ? __('Varies') : money($product->retail_price)" icon="bi-tag" /></div>
+        @if ($canCost)
+            <div class="col-sm-6 col-xl-3"><x-stat-card :label="__('Cost price')" :value="money($product->cost_price)" icon="bi-cash" color="warning" :hint="$product->marginPercent() !== null ? __('Margin :m%', ['m' => $product->marginPercent()]) : null" /></div>
+        @else
+            <div class="col-sm-6 col-xl-3"><x-stat-card :label="__('Wholesale price')" :value="$product->wholesale_price ? money($product->wholesale_price) : '—'" icon="bi-boxes" color="warning" /></div>
+        @endif
+        <div class="col-sm-6 col-xl-3"><x-stat-card :label="__('Stock (all branches)')" :value="$product->track_stock ? qty($product->has_variants ? $product->variants->sum('stock_qty') : $totalStock).' '.$product->unit?->short_name : __('Not tracked')" icon="bi-stack" color="info" /></div>
+        <div class="col-sm-6 col-xl-3"><x-stat-card :label="__('Reorder level')" :value="qty($product->reorder_level).' '.$product->unit?->short_name" icon="bi-bell" color="danger" /></div>
+    </div>
+
+    <ul class="nav nav-tabs-modern mb-3" role="tablist">
+        <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-overview" type="button">{{ __('Overview') }}</button></li>
+        @if ($product->has_variants)<li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-variants" type="button">{{ __('Variants') }} <span class="badge text-bg-secondary-soft">{{ $product->variants->count() }}</span></button></li>@endif
+        @if ($product->track_stock && ! $product->has_variants)
+            <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-stock" type="button">{{ __('Stock') }}</button></li>
+            @if (\Illuminate\Support\Facades\Route::has('stock.movements'))<li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-movements" type="button">{{ __('Movements') }}</button></li>@endif
+        @endif
+        @if ($salesChart)<li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-sales" type="button">{{ __('Sales') }}</button></li>@endif
+        @if ($product->track_batches)<li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-batches" type="button">{{ __('Batches') }} <span class="badge text-bg-secondary-soft">{{ $batches->count() }}</span></button></li>@endif
+        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-prices" type="button">{{ __('Price history') }}</button></li>
+    </ul>
+
+    <div class="tab-content">
+        <div class="tab-pane fade show active" id="tab-overview">
+            <div class="row g-4">
+                <div class="col-lg-7">
+                    <x-card :title="__('Details')">
+                        <dl class="row info-list mb-0">
+                            <div class="col-sm-6"><dt>{{ __('Base unit') }}</dt><dd>{{ $product->unit?->label() ?? '—' }}</dd></div>
+                            <div class="col-sm-6"><dt>{{ __('VAT') }}</dt><dd>{{ $product->tax_type?->label() }}</dd></div>
+                            <div class="col-sm-6"><dt>{{ __('Wholesale price') }}</dt><dd>{{ $product->wholesale_price ? money($product->wholesale_price) : '—' }} @if ($product->wholesale_min_qty)<span class="text-body-secondary small">({{ __('from :q', ['q' => qty($product->wholesale_min_qty)]) }})</span>@endif</dd></div>
+                            <div class="col-sm-6"><dt>{{ __('Tracking') }}</dt><dd>
+                                {{ $product->track_stock ? __('Stock tracked') : __('Service (no stock)') }}{{ $product->track_batches ? ' · '.__('Batches & expiry') : '' }}{{ $product->is_weighted ? ' · '.__('Weighed') : '' }}
+                            </dd></div>
+                            <div class="col-12"><dt>{{ __('Description') }}</dt><dd class="mb-0">{{ $product->description ?: '—' }}</dd></div>
+                        </dl>
+                    </x-card>
+                </div>
+                <div class="col-lg-5">
+                    <x-card :title="__('Barcodes & units')" :flush="true">
+                        <ul class="list-group list-group-flush">
+                            @forelse ($product->barcodes as $barcode)
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    <span class="font-monospace">{{ $barcode->barcode }}</span>
+                                    <span class="badge text-bg-secondary-soft">{{ $barcode->productUnit?->unit?->name ?? $product->unit?->name }}</span>
+                                </li>
+                            @empty
+                                <li class="list-group-item text-body-secondary small">{{ __('No barcodes. The SKU can be scanned instead.') }}</li>
+                            @endforelse
+                            @foreach ($product->units as $pu)
+                                <li class="list-group-item d-flex justify-content-between align-items-center bg-surface">
+                                    <span>1 {{ $pu->unit->name }} = {{ qty($pu->factor) }} {{ $product->unit?->short_name }}</span>
+                                    <span class="fw-semibold">{{ money($pu->retail_price) }}</span>
+                                </li>
+                            @endforeach
+                        </ul>
+                    </x-card>
+                </div>
+            </div>
+        </div>
+
+        @if ($product->has_variants)
+            <div class="tab-pane fade" id="tab-variants">
+                <div class="card"><div class="table-responsive">
+                    <table class="table table-hover table-stack">
+                        <thead><tr><th>{{ __('Variant') }}</th><th>{{ __('SKU') }}</th><th class="text-end">{{ __('Price') }}</th><th class="text-end">{{ __('Stock') }}</th><th>{{ __('Status') }}</th></tr></thead>
+                        <tbody>
+                        @foreach ($product->variants as $v)
+                            <tr>
+                                <td data-label="{{ __('Variant') }}"><a href="{{ route('products.show', $v) }}" class="fw-semibold text-decoration-none">{{ $v->variantLabel() }}</a></td>
+                                <td data-label="{{ __('SKU') }}" class="font-monospace small">{{ $v->sku }}</td>
+                                <td data-label="{{ __('Price') }}" class="text-end text-money">{{ money($v->retail_price) }}</td>
+                                <td data-label="{{ __('Stock') }}" class="text-end">{{ qty($v->stock_qty ?? 0) }}</td>
+                                <td data-label="{{ __('Status') }}"><x-status-badge :status="$v->is_active ? 'active' : 'inactive'" /></td>
+                            </tr>
+                        @endforeach
+                        </tbody>
+                    </table>
+                </div></div>
+            </div>
+        @endif
+
+        @if ($product->track_stock && ! $product->has_variants)
+            <div class="tab-pane fade" id="tab-stock">
+                <div class="card">
+                    @if ($stocks->isEmpty())
+                        <x-empty-state icon="bi-stack" :title="__('No stock recorded yet')" :message="__('Receive goods or post opening stock to start tracking.')" />
+                    @else
+                        <div class="table-responsive">
+                            <table class="table table-stack">
+                                <thead><tr><th>{{ __('Branch') }}</th><th class="text-end">{{ __('Quantity') }}</th>@if ($canCost)<th class="text-end">{{ __('Value at cost') }}</th>@endif<th class="text-end">{{ __('Value at retail') }}</th><th>{{ __('Status') }}</th></tr></thead>
+                                <tbody>
+                                @foreach ($stocks as $s)
+                                    <tr>
+                                        <td data-label="{{ __('Branch') }}" class="fw-semibold">{{ $s->branch->name }}</td>
+                                        <td data-label="{{ __('Quantity') }}" class="text-end">{{ qty($s->quantity) }} {{ $product->unit?->short_name }}</td>
+                                        @if ($canCost)<td data-label="{{ __('Value at cost') }}" class="text-end text-money">{{ money(\App\Support\Money::mul($s->quantity, $product->cost_price)) }}</td>@endif
+                                        <td data-label="{{ __('Value at retail') }}" class="text-end text-money">{{ money(\App\Support\Money::mul($s->quantity, $product->retail_price)) }}</td>
+                                        <td data-label="{{ __('Status') }}">
+                                            @if ($s->quantity <= 0)<x-status-badge status="out" :label="__('Out of stock')" />
+                                            @elseif ($s->quantity <= $product->reorder_level)<x-status-badge status="low" :label="__('Low stock')" />
+                                            @else<x-status-badge status="active" :label="__('In stock')" />@endif
+                                        </td>
+                                    </tr>
+                                @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                    @endif
+                </div>
+            </div>
+            @if (\Illuminate\Support\Facades\Route::has('stock.movements'))
+                <div class="tab-pane fade" id="tab-movements">
+                    <livewire:tables.stock-movements-table :product-id="$product->id" />
+                </div>
+            @endif
+        @endif
+
+        @if ($salesChart)
+            <div class="tab-pane fade" id="tab-sales">
+                <x-card :title="__('Units sold — last 30 days')">
+                    <div class="chart-box"><canvas data-chart='@json($salesChart)'></canvas></div>
+                </x-card>
+            </div>
+        @endif
+
+        @if ($product->track_batches)
+            <div class="tab-pane fade" id="tab-batches">
+                <div class="card">
+                    @if ($batches->isEmpty())
+                        <x-empty-state icon="bi-calendar2-x" :title="__('No batches in stock')" />
+                    @else
+                        <div class="table-responsive">
+                            <table class="table table-stack">
+                                <thead><tr><th>{{ __('Batch') }}</th><th>{{ __('Branch') }}</th><th>{{ __('Expiry') }}</th><th class="text-end">{{ __('Quantity') }}</th><th>{{ __('Status') }}</th></tr></thead>
+                                <tbody>
+                                @foreach ($batches as $b)
+                                    <tr>
+                                        <td data-label="{{ __('Batch') }}" class="font-monospace">{{ $b->batch_no }}</td>
+                                        <td data-label="{{ __('Branch') }}">{{ $b->branch->name }}</td>
+                                        <td data-label="{{ __('Expiry') }}">{{ format_date($b->expiry_date) }}</td>
+                                        <td data-label="{{ __('Quantity') }}" class="text-end">{{ qty($b->quantity) }}</td>
+                                        <td data-label="{{ __('Status') }}"><x-status-badge :status="$b->expiryStatus()" /></td>
+                                    </tr>
+                                @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                    @endif
+                </div>
+            </div>
+        @endif
+
+        <div class="tab-pane fade" id="tab-prices">
+            <div class="card">
+                @if ($priceHistory->isEmpty())
+                    <x-empty-state icon="bi-graph-up" :title="__('No price changes recorded')" />
+                @else
+                    <div class="table-responsive">
+                        <table class="table table-stack">
+                            <thead><tr><th>{{ __('Date') }}</th><th>{{ __('Field') }}</th><th class="text-end">{{ __('Old') }}</th><th class="text-end">{{ __('New') }}</th><th>{{ __('By') }}</th><th>{{ __('Reason') }}</th></tr></thead>
+                            <tbody>
+                            @foreach ($priceHistory as $h)
+                                @continue($h->field === 'cost_price' && ! $canCost)
+                                <tr>
+                                    <td data-label="{{ __('Date') }}">{{ format_date($h->created_at, true) }}</td>
+                                    <td data-label="{{ __('Field') }}">{{ \Illuminate\Support\Str::headline($h->field) }}</td>
+                                    <td data-label="{{ __('Old') }}" class="text-end text-money text-body-secondary">{{ $h->old_value !== null ? money($h->old_value) : '—' }}</td>
+                                    <td data-label="{{ __('New') }}" class="text-end text-money fw-semibold">{{ $h->new_value !== null ? money($h->new_value) : '—' }}</td>
+                                    <td data-label="{{ __('By') }}">{{ $h->user?->name ?? __('System') }}</td>
+                                    <td data-label="{{ __('Reason') }}" class="small">{{ $h->reason ?: '—' }}</td>
+                                </tr>
+                            @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                @endif
+            </div>
+        </div>
+    </div>
+</x-layouts.app>

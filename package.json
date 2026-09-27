@@ -1,0 +1,24 @@
+{
+    "$schema": "https://www.schemastore.org/package.json",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "build": "vite build",
+        "dev": "vite"
+    },
+    "devDependencies": {
+        "@fontsource/inter": "^5.3.0",
+        "@popperjs/core": "^2.11.8",
+        "bootstrap": "5.3",
+        "bootstrap-icons": "^1.13.1",
+        "chart.js": "^4.5.1",
+        "concurrently": "^10.0.3",
+        "laravel-vite-plugin": "^3.1",
+        "sass": "^1.105.0",
+        "tom-select": "^2.6.2",
+        "vite": "^8.0.0"
+    },
+    "optionalDependencies": {
+        "@laravel/multiplex": "^0.4.1"
+    }
+}
