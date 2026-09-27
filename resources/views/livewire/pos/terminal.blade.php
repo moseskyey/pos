@@ -47,11 +47,12 @@
                 <div class="d-flex gap-2 align-items-center">
                     <div class="pos-search flex-grow-1">
                         <i class="bi bi-upc-scan"></i>
-                        <input type="search" x-ref="search" class="form-control" autofocus autocomplete="off"
+                        <input type="search" x-ref="search" id="pos-search" class="form-control" autofocus autocomplete="off"
                                wire:model.live.debounce.250ms="search" wire:keydown.enter.prevent="scan"
                                placeholder="{{ __('Scan barcode or search name / SKU…') }}  (F2)" aria-label="{{ __('Search products') }}">
                         <span class="scan-indicator" wire:loading wire:target="scan,search"><span class="spinner-border spinner-border-sm text-primary"></span></span>
                     </div>
+                    <x-camera-scan target="#pos-search" />
                     <div class="btn-group" role="group" aria-label="{{ __('View') }}">
                         <button type="button" class="btn btn-light {{ $view === 'grid' ? 'active' : '' }}" wire:click="$set('view', 'grid')" aria-label="{{ __('Grid view') }}"><i class="bi bi-grid-3x3-gap"></i></button>
                         <button type="button" class="btn btn-light {{ $view === 'list' ? 'active' : '' }}" wire:click="$set('view', 'list')" aria-label="{{ __('List view') }}"><i class="bi bi-list-ul"></i></button>
@@ -137,6 +138,18 @@
                             <button type="button" class="btn btn-light btn-icon" wire:click="selectCustomer(null)" aria-label="{{ __('Remove customer') }}"><i class="bi bi-x-lg"></i></button>
                         @endif
                     </div>
+                    @if ($this->salespeople->count() > 1)
+                        <div class="px-3 pt-2 d-flex align-items-center gap-2">
+                            <label for="pos-salesperson" class="small text-body-secondary text-nowrap mb-0"><i class="bi bi-person-badge"></i> {{ __('Sold by') }}</label>
+                            <select id="pos-salesperson" class="form-select form-select-sm" wire:model.live="salespersonId">
+                                <option value="">{{ auth()->user()->name }} ({{ __('me') }})</option>
+                                @foreach ($this->salespeople as $person)
+                                    @continue($person->id === auth()->id())
+                                    <option value="{{ $person->id }}">{{ $person->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                    @endif
 
                     <div class="cart-lines">
                         @forelse ($cart as $key => $line)

@@ -74,5 +74,52 @@
                 @endif
             </x-card>
         </div>
+
+        @if ($apiTokens !== null)
+            <div class="col-12" id="api">
+                <x-card :title="__('API tokens')" icon="bi-plug" :subtitle="__('Let a mobile app, online shop or accounting tool read your data. A token acts as you, with your permissions and branches.')">
+                    @if ($plain = session('api_token_plain'))
+                        <div class="alert alert-success" x-data="{ copied: false }">
+                            <div class="fw-semibold mb-1"><i class="bi bi-key"></i> {{ __('Your new token (copy it now, it will not be shown again):') }}</div>
+                            <div class="input-group">
+                                <input type="text" class="form-control font-monospace" value="{{ $plain }}" readonly x-ref="token" aria-label="{{ __('API token') }}" @focus="$el.select()">
+                                <button type="button" class="btn btn-success" @click="navigator.clipboard.writeText($refs.token.value); copied = true"><i class="bi" :class="copied ? 'bi-check2' : 'bi-clipboard'"></i> <span x-text="copied ? @js(__('Copied')) : @js(__('Copy'))"></span></button>
+                            </div>
+                        </div>
+                    @endif
+                    @if ($apiTokens->isNotEmpty())
+                        <div class="table-responsive mb-3">
+                            <table class="table table-stack align-middle mb-0">
+                                <thead><tr><th>{{ __('Name') }}</th><th>{{ __('Token') }}</th><th>{{ __('Access') }}</th><th>{{ __('Last used') }}</th><th>{{ __('Expires') }}</th><th></th></tr></thead>
+                                <tbody>
+                                @foreach ($apiTokens as $token)
+                                    <tr>
+                                        <td data-label="{{ __('Name') }}" class="fw-semibold">{{ $token->name }}</td>
+                                        <td data-label="{{ __('Token') }}" class="font-monospace small">{{ $token->prefix }}…</td>
+                                        <td data-label="{{ __('Access') }}">{{ $token->can('write') ? __('Read & write') : __('Read only') }}</td>
+                                        <td data-label="{{ __('Last used') }}" class="small">{{ $token->last_used_at ? format_date($token->last_used_at, true) : __('Never') }}</td>
+                                        <td data-label="{{ __('Expires') }}" class="small {{ $token->isExpired() ? 'text-danger' : '' }}">{{ $token->expires_at ? format_date($token->expires_at) : __('Never') }}</td>
+                                        <td class="text-end">
+                                            <form method="POST" action="{{ route('api-tokens.destroy', $token) }}" data-confirm="{{ __('Revoke :n? Apps using it stop working.', ['n' => $token->name]) }}">@csrf @method('DELETE')
+                                                <button class="btn btn-sm btn-outline-danger">{{ __('Revoke') }}</button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                    @endif
+                    <form method="POST" action="{{ route('api-tokens.store') }}" class="row g-2 align-items-end">
+                        @csrf
+                        <div class="col-md-4"><x-input name="name" :label="__('Token name')" :placeholder="__('e.g. Online shop')" required class="mb-0" /></div>
+                        <div class="col-md-3"><x-select name="expires_in_days" :label="__('Expires')" :options="['' => __('Never'), 30 => __('In 30 days'), 90 => __('In 90 days'), 365 => __('In 1 year')]" class="mb-0" /></div>
+                        <div class="col-md-3"><x-toggle name="write" :label="__('Allow changes (create customers)')" class="mb-0" /></div>
+                        <div class="col-md-2 d-grid"><button class="btn btn-primary"><i class="bi bi-plus-lg"></i> {{ __('Create token') }}</button></div>
+                    </form>
+                    <p class="small text-body-secondary mt-3 mb-0"><i class="bi bi-book"></i> {{ __('Send it as a header: Authorization: Bearer <token>. Base URL: :u', ['u' => url('/api/v1')]) }}</p>
+                </x-card>
+            </div>
+        @endif
     </div>
 </x-layouts.app>

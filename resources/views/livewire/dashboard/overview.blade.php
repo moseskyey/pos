@@ -22,6 +22,27 @@
         <div class="col-sm-6 col-xl-4 col-xxl-2"><x-stat-card :label="__('Customer debts')" :value="money($debts)" icon="bi-journal-text" color="danger" :hint="trans_choice(':count debtor|:count debtors', $debtors)" :href="\Illuminate\Support\Facades\Route::has('customers.index') && auth()->user()->can('customers.view') ? route('customers.index', ['filters' => ['debt' => 'owing']]) : null" /></div>
     </div>
 
+    @if ($myMonth)
+        @php $pct = $myMonth['achieved'] !== null ? min(100, $myMonth['achieved']) : null; @endphp
+        <div class="card mb-4">
+            <div class="card-body d-flex flex-wrap align-items-center gap-4">
+                <div class="d-flex align-items-center gap-3">
+                    <span class="feature-icon bg-warning-soft text-warning" aria-hidden="true"><i class="bi bi-trophy"></i></span>
+                    <div><div class="small text-body-secondary">{{ __('My sales this month') }}</div><div class="fs-5 fw-bold text-money">{{ money($myMonth['commissionable']) }}</div></div>
+                </div>
+                @if ($myMonth['target'] !== null)
+                    <div class="flex-grow-1" style="min-width:200px">
+                        <div class="d-flex justify-content-between small mb-1"><span>{{ __('Target :t', ['t' => money($myMonth['target'])]) }}</span><span class="fw-semibold">{{ $myMonth['achieved'] }}%</span></div>
+                        <div class="progress" style="height:8px" role="progressbar" aria-valuenow="{{ (int) $pct }}" aria-valuemin="0" aria-valuemax="100"><div class="progress-bar {{ $pct >= 100 ? 'bg-success' : '' }}" style="width: {{ $pct }}%"></div></div>
+                    </div>
+                @endif
+                @if ($myMonth['rate'] !== null)
+                    <div><div class="small text-body-secondary">{{ __('Commission so far') }}</div><div class="fs-5 fw-bold text-success text-money">{{ money($myMonth['commission']) }}</div></div>
+                @endif
+            </div>
+        </div>
+    @endif
+
     <div class="row g-4 mb-4">
         <div class="col-xl-8">
             <x-card :title="__('Sales — last 30 days')" icon="bi-graph-up">

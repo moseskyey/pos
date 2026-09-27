@@ -36,6 +36,7 @@ class UserRequest extends FormRequest
             'branches.*' => ['integer', Rule::exists('branches', 'id')],
             'default_branch_id' => ['nullable', 'integer', Rule::in($this->input('branches', []))],
             'pin' => ['nullable', 'digits_between:4,6'],
+            'commission_rate' => ['nullable', 'numeric', 'between:0,100'],
             'is_active' => ['boolean'],
             'avatar' => ['nullable', 'image', 'max:2048'],
         ];

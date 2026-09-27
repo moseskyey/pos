@@ -11,6 +11,7 @@ use App\Models\Register;
 use App\Models\Supplier;
 use App\Models\SupplierBill;
 use App\Reports\ReportRegistry;
+use App\Services\SettingsService;
 use App\Services\ShiftService;
 use App\Services\StockService;
 use App\Services\StockTakeService;
@@ -50,6 +51,7 @@ it('refuses supplier payments from the drawer without an open shift, and counts 
 });
 
 it('survives malformed report dates and filters (#9)', function () {
+    app(SettingsService::class)->set(['features.commission' => true]); // opt-in report
     foreach (ReportRegistry::all()->keys() as $key) {
         $this->get(route('reports.show', $key).'?from=bad&to=nope')->assertOk();
         $this->get(route('reports.show', $key).'?from[]=x&preset[]=y&by[]=z')->assertOk();

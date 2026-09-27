@@ -1,6 +1,7 @@
 <?php
 
 use App\Exceptions\BusinessRuleException;
+use App\Http\Middleware\AuthenticateApiToken;
 use App\Http\Middleware\AuthenticatePlatformAdmin;
 use App\Http\Middleware\EnsureFeatureEnabled;
 use App\Http\Middleware\EnsureSubscriptionActive;
@@ -15,6 +16,7 @@ use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
+use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Support\Facades\Route;
 use Spatie\Permission\Middleware\PermissionMiddleware;
 use Spatie\Permission\Middleware\RoleMiddleware;
@@ -38,9 +40,12 @@ return Application::configure(basePath: dirname(__DIR__))
         // The business must be chosen before authentication and route model binding.
         $middleware->prependToPriorityList(AuthenticatesRequests::class, IdentifyTenant::class);
         $middleware->prependToPriorityList(AuthenticatesRequests::class, InitializeTenancyFromRoute::class);
+        // API tokens pick the business database, so they must run before route-model binding.
+        $middleware->prependToPriorityList(before: SubstituteBindings::class, prepend: AuthenticateApiToken::class);
         $middleware->alias([
             'active' => EnsureUserIsActive::class,
             'feature' => EnsureFeatureEnabled::class,
+            'api.token' => AuthenticateApiToken::class,
             'subscribed' => EnsureSubscriptionActive::class,
             'tenant.route' => InitializeTenancyFromRoute::class,
             'admin' => AuthenticatePlatformAdmin::class,

@@ -35,6 +35,7 @@ return [
         ],
         'Settings' => [
             'settings.manage' => 'Manage settings',
+            'api.tokens' => 'Create API tokens',
             'backups.manage' => 'Manage backups',
         ],
         'Catalog' => [
@@ -106,6 +107,7 @@ return [
             'reports.view' => 'View reports',
             'reports.profit.view' => 'View cost, profit & margins',
             'reports.export' => 'Export reports',
+            'targets.manage' => 'Set sales targets and commission rates',
         ],
     ],
 
@@ -129,7 +131,7 @@ return [
                 'customers.*', 'cheques.manage',
                 'suppliers.*', 'purchases.*', 'supplier.payments',
                 'expenses.*',
-                'reports.*',
+                'reports.*', 'targets.manage',
             ],
         ],
         'cashier' => [
@@ -189,6 +191,9 @@ return [
         'features.serials' => false,
         'features.pharmacy' => false,
         'features.cheques' => false,
+        'features.commission' => false,
+        'features.camera_scan' => true,
+        'features.api' => false,
         'features.business_type' => null,
 
         // Credit terms
@@ -325,6 +330,9 @@ return [
         'serials' => ['label' => 'Serial / IMEI numbers', 'icon' => 'bi-upc-scan', 'description' => 'Record the serial or IMEI of every phone or appliance sold, with warranty look-up by serial.'],
         'pharmacy' => ['label' => 'Pharmacy', 'icon' => 'bi-capsule', 'description' => 'Generic names, strength and dosage form; prescription-only items ask for the Rx number at the till.'],
         'cheques' => ['label' => 'Cheques', 'icon' => 'bi-bank2', 'description' => 'Take and give cheques, including post-dated ones, and track them until they clear or bounce.'],
+        'commission' => ['label' => 'Commission & targets', 'icon' => 'bi-trophy', 'description' => 'Record who made each sale, pay commission on it, and set monthly sales targets.'],
+        'camera_scan' => ['label' => 'Camera scanning', 'icon' => 'bi-camera', 'description' => 'Scan barcodes with a phone or tablet camera: at the till, in stock takes and on goods received.'],
+        'api' => ['label' => 'API access', 'icon' => 'bi-plug', 'description' => 'Connect a mobile app, online shop or accounting tool with API tokens.'],
         'email_documents' => ['label' => 'Email documents', 'icon' => 'bi-envelope', 'description' => 'Email receipts, invoices and quotations to customers as PDF.'],
     ],
 

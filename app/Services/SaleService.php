@@ -252,6 +252,7 @@ class SaleService
                 'cart_discount_type' => $cart['cart_discount_type'] ?? null,
                 'cart_discount_value' => $cart['cart_discount_value'] ?? null,
                 'note' => $cart['note'] ?? null,
+                'salesperson_id' => $this->salespersonId($cart['salesperson_id'] ?? null, $cashier, $shift->branch_id),
                 'prescription_ref' => filled($cart['prescription_ref'] ?? null) ? Str::limit(trim($cart['prescription_ref']), 60, '') : null,
                 'prescriber' => filled($cart['prescriber'] ?? null) ? Str::limit(trim($cart['prescriber']), 120, '') : null,
                 'idempotency_key' => $idempotencyKey,
@@ -701,6 +702,23 @@ class SaleService
         }
 
         return [$rows, $paid, $tendered, $change, $credit, $storeCredit];
+    }
+
+    /** Who gets the commission: the chosen salesperson when they work at this branch, else the cashier. */
+    protected function salespersonId(mixed $id, User $cashier, int $branchId): ?int
+    {
+        if (! feature('commission')) {
+            return null;
+        }
+        if (! $id || (int) $id === $cashier->id) {
+            return $cashier->id;
+        }
+        $person = User::query()->whereKey((int) $id)->where('is_active', true)->whereHas('branches', fn ($q) => $q->whereKey($branchId))->first();
+        if (! $person) {
+            throw new BusinessRuleException(__('The chosen salesperson does not work at this branch.'));
+        }
+
+        return $person->id;
     }
 
     /** Prescription-only items need the prescription number (Settings → Features → Pharmacy). */

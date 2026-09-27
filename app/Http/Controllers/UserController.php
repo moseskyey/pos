@@ -37,7 +37,7 @@ class UserController extends Controller
 
         $user = DB::transaction(function () use ($request) {
             $data = $request->validated();
-            $user = User::create(Arr::only($data, ['name', 'email', 'phone', 'password', 'is_active', 'default_branch_id']));
+            $user = User::create(Arr::only($data, ['name', 'email', 'phone', 'password', 'is_active', 'default_branch_id', 'commission_rate']));
             $user->syncRoles([$data['role']]);
             $user->branches()->sync($data['branches']);
             if (! empty($data['pin'])) {
@@ -82,6 +82,9 @@ class UserController extends Controller
         DB::transaction(function () use ($request, $user) {
             $data = $request->validated();
             $attributes = Arr::only($data, ['name', 'email', 'phone', 'is_active', 'default_branch_id']);
+            if (array_key_exists('commission_rate', $data)) {
+                $attributes['commission_rate'] = $data['commission_rate'];
+            }
             if (! empty($data['password'])) {
                 $attributes['password'] = $data['password'];
             }

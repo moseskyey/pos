@@ -5,7 +5,8 @@
         <div class="col-lg-7">
             <x-card :title="__('Warranty look-up')" icon="bi-shield-check">
                 <form method="GET" action="{{ route('serials.index') }}" class="d-flex gap-2 mb-3" role="search">
-                    <input type="search" name="q" value="{{ $query }}" class="form-control font-monospace" placeholder="{{ __('Scan or type serial / IMEI') }}" aria-label="{{ __('Serial / IMEI') }}" autofocus>
+                    <input type="search" name="q" id="serial-lookup" value="{{ $query }}" class="form-control font-monospace" placeholder="{{ __('Scan or type serial / IMEI') }}" aria-label="{{ __('Serial / IMEI') }}" autofocus>
+                    <x-camera-scan target="#serial-lookup" :enter="false" submit />
                     <button class="btn btn-primary"><i class="bi bi-search"></i> {{ __('Look up') }}</button>
                 </form>
                 @if ($query !== '')

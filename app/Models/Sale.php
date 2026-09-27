@@ -30,7 +30,7 @@ class Sale extends Model
     ];
 
     protected $fillable = [
-        'branch_id', 'register_id', 'shift_id', 'user_id', 'customer_id', 'number', 'status',
+        'branch_id', 'register_id', 'shift_id', 'user_id', 'salesperson_id', 'customer_id', 'number', 'status',
         'subtotal', 'discount_total', 'tax_total', 'rounding', 'total', 'paid_total', 'tendered', 'change_due', 'balance_due', 'due_date',
         'cart_discount_type', 'cart_discount_value', 'hold_note', 'note', 'prescription_ref', 'prescriber', 'idempotency_key', 'valid_until', 'converted_sale_id', 'synced_at', 'review_flags',
         'completed_at', 'voided_at', 'voided_by', 'void_reason', 'reprint_count', 'fiscal_code', 'fiscal_qr', 'loyalty_earned', 'loyalty_redeemed',
@@ -57,6 +57,12 @@ class Sale extends Model
             'review_flags' => 'array',
             'voided_at' => 'datetime',
         ];
+    }
+
+    /** Who made the sale for commission (defaults to the cashier). */
+    public function salesperson(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'salesperson_id');
     }
 
     public function items(): HasMany
