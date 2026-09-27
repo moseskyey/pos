@@ -18,7 +18,7 @@ return [
          * The name of this application. You can use this name to monitor
          * the backups.
          */
-        'name' => env('BACKUP_NAME', 'dukapos'),
+        'name' => env('BACKUP_NAME') ?: 'dukapos',
 
         'source' => [
             'files' => [
@@ -163,7 +163,7 @@ return [
             /*
              * The disk names on which the backups will be stored.
              */
-            'disks' => array_filter(explode(',', env('BACKUP_DISKS', 'local'))),
+            'disks' => array_filter(explode(',', env('BACKUP_DISKS') ?: 'local')),
 
             /*
              * Determines whether to allow backups to continue when some targets fail instead of failing completely.
@@ -180,7 +180,7 @@ return [
          * The password to be used for archive encryption.
          * Set to `null` or leave it empty to disable encryption.
          */
-        'password' => env('BACKUP_ARCHIVE_PASSWORD'),
+        'password' => env('BACKUP_ARCHIVE_PASSWORD') ?: null,
 
         /*
          * The encryption algorithm to be used for archive encryption.
@@ -234,10 +234,11 @@ return [
         'notifiable' => Notifiable::class,
 
         'mail' => [
-            'to' => env('BACKUP_NOTIFY_EMAIL', 'owner@example.com'),
+            // Empty values in .env must not reach spatie's validation, which runs on every boot.
+            'to' => env('BACKUP_NOTIFY_EMAIL') ?: 'owner@example.com',
 
             'from' => [
-                'address' => env('MAIL_FROM_ADDRESS', 'hello@example.com'),
+                'address' => env('MAIL_FROM_ADDRESS') ?: 'hello@example.com',
                 'name' => env('MAIL_FROM_NAME', 'Example'),
             ],
         ],
@@ -294,8 +295,8 @@ return [
      */
     'monitor_backups' => [
         [
-            'name' => env('BACKUP_NAME', 'dukapos'),
-            'disks' => array_filter(explode(',', env('BACKUP_DISKS', 'local'))),
+            'name' => env('BACKUP_NAME') ?: 'dukapos',
+            'disks' => array_filter(explode(',', env('BACKUP_DISKS') ?: 'local')),
             'health_checks' => [
                 MaximumAgeInDays::class => 1,
                 MaximumStorageInMegabytes::class => 5000,
@@ -330,7 +331,7 @@ return [
             /*
              * The number of days for which backups must be kept.
              */
-            'keep_all_backups_for_days' => (int) env('BACKUP_KEEP_DAYS', 7),
+            'keep_all_backups_for_days' => (int) (env('BACKUP_KEEP_DAYS') ?: 7),
 
             /*
              * After the "keep_all_backups_for_days" period is over, the most recent backup
