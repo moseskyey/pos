@@ -83,7 +83,7 @@
             </div>
 
             {{-- Global search --}}
-            <div class="global-search position-relative d-none d-lg-block flex-grow-1" x-data="globalSearch" @click.outside="open = false">
+            <div class="global-search position-relative d-none d-lg-block" x-data="globalSearch" @click.outside="open = false">
                 <i class="bi bi-search search-icon"></i>
                 <input type="search" class="form-control" x-ref="input" x-model="q" @input="search" @focus="results.length && (open = true)"
                        @keydown.escape="open = false" placeholder="{{ __('Search products, customers, invoices…') }}" aria-label="{{ __('Global search') }}">

@@ -3,9 +3,11 @@
 use App\Http\Controllers\BulkPriceController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\CustomerPaymentController;
+use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\LabelController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProductImportController;
+use App\Http\Controllers\PurchaseController;
 use App\Http\Controllers\QuotationController;
 use App\Http\Controllers\ReceiptController;
 use App\Http\Controllers\SaleController;
@@ -15,6 +17,7 @@ use App\Http\Controllers\StockAdjustmentController;
 use App\Http\Controllers\StockController;
 use App\Http\Controllers\StockTakeController;
 use App\Http\Controllers\StockTransferController;
+use App\Http\Controllers\SupplierController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -99,3 +102,30 @@ Route::get('/customer-payments', [CustomerPaymentController::class, 'index'])->n
 Route::get('/customer-payments/create', [CustomerPaymentController::class, 'create'])->name('customer-payments.create');
 Route::post('/customer-payments', [CustomerPaymentController::class, 'store'])->name('customer-payments.store');
 Route::get('/customer-payments/{customerPayment}', [CustomerPaymentController::class, 'show'])->name('customer-payments.show');
+
+// -------------------------------------------------- Purchases & expenses --
+Route::resource('suppliers', SupplierController::class);
+Route::get('/purchase-orders', [PurchaseController::class, 'orders'])->name('purchase-orders.index');
+Route::get('/purchase-orders/create', [PurchaseController::class, 'createOrder'])->name('purchase-orders.create');
+Route::get('/purchase-orders/{purchaseOrder}', [PurchaseController::class, 'showOrder'])->name('purchase-orders.show');
+Route::get('/purchase-orders/{purchaseOrder}/edit', [PurchaseController::class, 'editOrder'])->name('purchase-orders.edit');
+Route::get('/purchase-orders/{purchaseOrder}/pdf', [PurchaseController::class, 'orderPdf'])->name('purchase-orders.pdf');
+Route::post('/purchase-orders/{purchaseOrder}/send', [PurchaseController::class, 'sendOrder'])->name('purchase-orders.send');
+Route::post('/purchase-orders/{purchaseOrder}/cancel', [PurchaseController::class, 'cancelOrder'])->name('purchase-orders.cancel');
+Route::get('/goods-receipts', [PurchaseController::class, 'receipts'])->name('goods-receipts.index');
+Route::get('/goods-receipts/create', [PurchaseController::class, 'createReceipt'])->name('goods-receipts.create');
+Route::get('/goods-receipts/{goodsReceipt}', [PurchaseController::class, 'showReceipt'])->name('goods-receipts.show');
+Route::get('/supplier-bills', [PurchaseController::class, 'bills'])->name('supplier-bills.index');
+Route::post('/supplier-bills', [PurchaseController::class, 'storeBill'])->name('supplier-bills.store');
+Route::get('/supplier-bills/{supplierBill}', [PurchaseController::class, 'showBill'])->name('supplier-bills.show');
+Route::get('/supplier-payments/create', [PurchaseController::class, 'createPayment'])->name('supplier-payments.create');
+Route::post('/supplier-payments', [PurchaseController::class, 'storePayment'])->name('supplier-payments.store');
+Route::get('/purchase-returns', [PurchaseController::class, 'returns'])->name('purchase-returns.index');
+Route::get('/purchase-returns/create', [PurchaseController::class, 'createReturn'])->name('purchase-returns.create');
+Route::get('/purchase-returns/{purchaseReturn}', [PurchaseController::class, 'showReturn'])->name('purchase-returns.show');
+Route::get('/reorder', [PurchaseController::class, 'reorder'])->name('reorder.index');
+Route::post('/reorder', [PurchaseController::class, 'createFromReorder'])->name('reorder.store');
+
+Route::get('/expenses/recurring', [ExpenseController::class, 'recurring'])->name('recurring-expenses.index');
+Route::post('/expenses/categories', [ExpenseController::class, 'storeCategory'])->name('expense-categories.store');
+Route::resource('expenses', ExpenseController::class)->except('show');

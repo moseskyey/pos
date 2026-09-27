@@ -43,7 +43,7 @@ trait ModalForm
         $record = $this->findRecord($id);
         $this->editingId = $record->getKey();
         $this->form = array_merge($this->formFields(), collect($record->only(array_keys($this->formFields())))
-            ->map(fn ($v) => $v instanceof \BackedEnum ? $v->value : $v)->all());
+            ->map(fn ($v) => $v instanceof \BackedEnum ? $v->value : ($v instanceof \DateTimeInterface ? $v->format('Y-m-d') : $v))->all());
         $this->showForm = true;
     }
 

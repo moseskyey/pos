@@ -184,7 +184,7 @@ body {
 
     .navbar-title { min-width: 0; }
     .navbar-title h1 { font-size: 1.05rem; margin: 0; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .breadcrumb { font-size: .75rem; margin: 0; --bs-breadcrumb-divider-color: #9CA3AF; a { color: var(--bs-secondary-color); text-decoration: none; &:hover { color: $primary; } } }
+    .breadcrumb { font-size: .75rem; margin: 0; flex-wrap: nowrap; white-space: nowrap; overflow: hidden; --bs-breadcrumb-divider-color: #9CA3AF; a { color: var(--bs-secondary-color); text-decoration: none; &:hover { color: $primary; } } }
 
     .nav-icon-btn {
         width: 40px; height: 40px;
@@ -205,6 +205,7 @@ body {
         .form-control:focus { background-color: var(--bs-body-bg); border-color: $input-focus-border-color; }
         .search-icon { position: absolute; left: .85rem; top: 50%; transform: translateY(-50%); color: #9CA3AF; }
         .kbd-hint { position: absolute; right: .6rem; top: 50%; transform: translateY(-50%); }
+        flex: 0 1 360px;
         .search-results { position: absolute; top: calc(100% + .4rem); left: 0; right: 0; min-width: 320px; z-index: 1060; max-height: 420px; overflow-y: auto; }
     }
 }
