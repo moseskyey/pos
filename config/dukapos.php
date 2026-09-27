@@ -70,7 +70,6 @@ return [
             'sales.below_cost' => 'Sell below cost',
             'sales.negative_stock' => 'Sell beyond available stock',
             'sales.return' => 'Process returns / refunds',
-            'sales.credit' => 'Sell on credit',
             'sales.credit.above_limit' => 'Exceed customer credit limit',
             'sales.reprint' => 'Reprint receipts',
             'quotations.manage' => 'Manage quotations',

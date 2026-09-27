@@ -4,6 +4,8 @@ use App\Http\Controllers\BulkPriceController;
 use App\Http\Controllers\LabelController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProductImportController;
+use App\Http\Controllers\ReceiptController;
+use App\Http\Controllers\ShiftController;
 use App\Http\Controllers\StockAdjustmentController;
 use App\Http\Controllers\StockController;
 use App\Http\Controllers\StockTakeController;
@@ -58,3 +60,17 @@ Route::get('/stock-takes/{stockTake}', [StockTakeController::class, 'show'])->na
 Route::post('/stock-takes/{stockTake}/submit', [StockTakeController::class, 'submit'])->name('stock-takes.submit');
 Route::post('/stock-takes/{stockTake}/post', [StockTakeController::class, 'post'])->name('stock-takes.post');
 Route::post('/stock-takes/{stockTake}/cancel', [StockTakeController::class, 'cancel'])->name('stock-takes.cancel');
+
+// ------------------------------------------------------------ POS & shifts --
+Route::view('/pos', 'pos.index')->middleware('can:pos.access')->name('pos');
+Route::get('/shifts', [ShiftController::class, 'index'])->name('shifts.index');
+Route::get('/shifts/current', [ShiftController::class, 'current'])->name('shifts.current');
+Route::get('/shifts/{shift}', [ShiftController::class, 'show'])->name('shifts.show');
+Route::post('/shifts/{shift}/cash', [ShiftController::class, 'cash'])->name('shifts.cash');
+Route::post('/shifts/{shift}/close', [ShiftController::class, 'close'])->name('shifts.close');
+Route::get('/shifts/{shift}/report/{type}', [ShiftController::class, 'report'])->name('shifts.report');
+
+Route::get('/receipts/{sale}', [ReceiptController::class, 'show'])->name('receipts.show');
+Route::get('/receipts/{sale}/reprint', [ReceiptController::class, 'reprint'])->name('receipts.reprint');
+Route::get('/receipts/{sale}/invoice', [ReceiptController::class, 'invoice'])->name('receipts.invoice');
+Route::get('/receipts/{sale}/delivery-note', [ReceiptController::class, 'deliveryNote'])->name('receipts.delivery-note');

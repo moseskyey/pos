@@ -10,6 +10,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\FileController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\ReceiptController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\SearchController;
 use App\Http\Controllers\SettingsController;
@@ -29,6 +30,7 @@ Route::middleware('guest')->group(function () {
 });
 
 Route::post('/preferences/locale', [ProfileController::class, 'locale'])->name('preferences.locale');
+Route::get('/verify/{number}', [ReceiptController::class, 'verify'])->name('receipts.verify');
 
 Route::middleware('auth')->group(function () {
     Route::post('/logout', [LoginController::class, 'destroy'])->name('logout');

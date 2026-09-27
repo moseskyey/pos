@@ -2,6 +2,7 @@
 <html lang="{{ app()->getLocale() }}">
 <head>
     <meta charset="utf-8">
+    <link rel="icon" href="{{ asset('favicon.svg') }}" type="image/svg+xml">
     <title>{{ __('Barcode labels') }}</title>
     <style>
         @page { size: {{ $sizeKey === 'roll-50x25' ? '50mm 25mm' : 'A4' }}; margin: {{ $sizeKey === 'roll-50x25' ? '0' : '0' }}; }
