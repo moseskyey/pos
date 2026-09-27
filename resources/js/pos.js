@@ -44,6 +44,7 @@ document.addEventListener('alpine:init', () => {
         },
 
         onKey(e) {
+            if (document.body.classList.contains('pos-locked')) return;
             const tag = (e.target.tagName || '').toLowerCase();
             const typing = ['input', 'textarea', 'select'].includes(tag);
             const key = e.key;
@@ -89,6 +90,73 @@ document.addEventListener('alpine:init', () => {
             if (!frame) { window.open(url, '_blank'); return; }
             frame.onload = () => { try { frame.contentWindow.focus(); frame.contentWindow.print(); } catch (e) { window.open(url, '_blank'); } };
             frame.src = url + (url.includes('?') ? '&' : '?') + 'embed=1';
+        },
+    }));
+
+    /**
+     * Idle lock: after N minutes without input the terminal is covered and the
+     * cashier must re-enter their PIN. The lock is also flagged in the server
+     * session so a page reload does not bypass it.
+     */
+    window.Alpine.data('idleLock', ({ minutes, locked, lockUrl, verifyUrl }) => ({
+        locked,
+        pin: '',
+        error: '',
+        busy: false,
+        timer: null,
+
+        init() {
+            if (!minutes || minutes <= 0) return;
+            ['mousemove', 'mousedown', 'keydown', 'touchstart', 'wheel'].forEach(ev =>
+                window.addEventListener(ev, () => this.reset(), { passive: true }));
+            this.locked ? this.show() : this.reset();
+        },
+
+        reset() {
+            if (this.locked) return;
+            clearTimeout(this.timer);
+            this.timer = setTimeout(() => this.lock(), minutes * 60000);
+        },
+
+        lock() {
+            this.locked = true;
+            this.show();
+            this.post(lockUrl, {}).catch(() => {});
+        },
+
+        show() {
+            document.body.classList.add('pos-locked');
+            this.$nextTick(() => this.$refs.pin?.focus());
+        },
+
+        post(url, body) {
+            return fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content },
+                body: JSON.stringify(body),
+            });
+        },
+
+        async unlock() {
+            if (this.busy || this.pin.length < 4) return;
+            this.busy = true; this.error = '';
+            try {
+                const res = await this.post(verifyUrl, { pin: this.pin });
+                const data = await res.json().catch(() => ({}));
+                if (res.ok && data.ok) {
+                    this.locked = false; this.pin = '';
+                    document.body.classList.remove('pos-locked');
+                    this.reset();
+                    window.dispatchEvent(new CustomEvent('focus-search'));
+                } else {
+                    this.error = data.message || 'Incorrect PIN.';
+                    this.pin = '';
+                    if (res.status === 423 || res.status === 419) setTimeout(() => window.location.reload(), 1500);
+                }
+            } finally {
+                this.busy = false;
+                this.$nextTick(() => this.$refs.pin?.focus());
+            }
         },
     }));
 });

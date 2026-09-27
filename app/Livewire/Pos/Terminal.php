@@ -660,6 +660,11 @@ class Terminal extends Component
 
     public function checkout(SaleService $sales, string $status = 'completed'): void
     {
+        if (session('pos_locked')) {
+            $this->dispatch('toast', message: __('Terminal locked. Enter your PIN to continue.'), type: 'error');
+
+            return;
+        }
         if (! $this->shift) {
             $this->dispatch('toast', message: __('Open a shift before selling.'), type: 'error');
 

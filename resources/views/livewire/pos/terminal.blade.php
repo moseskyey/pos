@@ -400,5 +400,30 @@
             <span class="badge text-bg-light border ms-1">{{ $this->shift->register->name }} · {{ $this->shift->number }}</span>
         </div>
         <iframe x-ref="printFrame" class="d-none" title="receipt"></iframe>
+
+        {{-- Idle lock screen ----------------------------------------------------------}}
+        <div wire:ignore x-data="idleLock({ minutes: {{ (int) setting('pos.lock_minutes', 0) }}, locked: @js((bool) session('pos_locked')), lockUrl: @js(route('lock')), verifyUrl: @js(route('lock.verify')) })">
+            <template x-if="locked">
+                <div class="pos-lock-screen d-grid" role="dialog" aria-modal="true" aria-label="{{ __('Terminal locked') }}">
+                    <form class="card shadow-lg text-center" style="width: 340px" @submit.prevent="unlock()">
+                        <div class="card-body p-4">
+                            <x-avatar :user="auth()->user()" size="lg" class="mx-auto mb-3" />
+                            <h5 class="fw-bold mb-1">{{ auth()->user()->name }}</h5>
+                            <p class="text-body-secondary small mb-3"><i class="bi bi-lock-fill"></i> {{ __('Terminal locked. Enter your PIN to continue.') }}</p>
+                            <input x-ref="pin" x-model="pin" type="password" inputmode="numeric" maxlength="6" autocomplete="off"
+                                   class="form-control form-control-lg text-center fs-3 mb-2" style="letter-spacing: .5em" :class="error && 'is-invalid'"
+                                   placeholder="••••" aria-label="{{ __('PIN') }}">
+                            <div class="invalid-feedback d-block mb-2" x-text="error" x-show="error"></div>
+                            <button class="btn btn-primary btn-lg w-100" :disabled="busy || pin.length < 4">
+                                <span x-show="busy" class="spinner-border spinner-border-sm"></span> {{ __('Unlock') }}
+                            </button>
+                        </div>
+                    </form>
+                    <form method="POST" action="{{ route('logout') }}" class="text-center mt-3">@csrf
+                        <button class="btn btn-link text-white text-decoration-none">{{ __('Switch user') }}</button>
+                    </form>
+                </div>
+            </template>
+        </div>
     @endif
 </div>

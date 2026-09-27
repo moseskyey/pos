@@ -16,7 +16,7 @@
                                 <span class="badge rounded-pill text-bg-secondary-soft">{{ __('Built-in') }}</span>
                             @endif
                         </div>
-                        <h5 class="fw-semibold mb-1">{{ config("dukapos.roles.{$role->name}.label", \Illuminate\Support\Str::headline($role->name)) }}</h5>
+                        <h5 class="fw-semibold mb-1">{{ __(config("dukapos.roles.{$role->name}.label", \Illuminate\Support\Str::headline($role->name))) }}</h5>
                         <div class="small text-body-secondary mb-3">
                             {{ $role->name === 'owner' ? __('All permissions') : trans_choice(':count permission|:count permissions', $role->permissions_count) }}
                             · {{ trans_choice(':count user|:count users', $role->users_count) }}

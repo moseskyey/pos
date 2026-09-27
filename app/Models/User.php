@@ -106,7 +106,7 @@ class User extends Authenticatable
     {
         $role = $this->roles->first()?->name;
 
-        return $role ? (config("dukapos.roles.$role.label") ?? ucfirst($role)) : __('No role');
+        return $role ? __(config("dukapos.roles.$role.label") ?? ucfirst($role)) : __('No role');
     }
 
     public function deleteAvatar(): void

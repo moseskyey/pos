@@ -1,0 +1,67 @@
+name: tests
+
+on:
+  push:
+    branches: [main, 'claude/**']
+  pull_request:
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        db: [sqlite, mysql]
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_DATABASE: dukapos_test
+          MYSQL_ROOT_PASSWORD: secret
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="mysqladmin ping -psecret" --health-interval=10s --health-timeout=5s --health-retries=5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, intl, gd, zip, pdo_sqlite, pdo_mysql, bcmath
+          coverage: none
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: |
+          composer install --no-interaction --prefer-dist --no-progress
+          npm ci --no-audit --no-fund
+
+      - name: Build assets
+        run: npm run build
+
+      - name: Prepare application
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+
+      - name: Code style (Pint)
+        if: matrix.db == 'sqlite'
+        run: vendor/bin/pint --test
+
+      - name: Tests (SQLite)
+        if: matrix.db == 'sqlite'
+        run: php artisan test
+
+      - name: Tests (MySQL)
+        if: matrix.db == 'mysql'
+        run: |
+          sed -e 's#<env name="DB_CONNECTION" value="sqlite"/>#<env name="DB_CONNECTION" value="mysql" force="true"/><env name="DB_HOST" value="127.0.0.1" force="true"/><env name="DB_USERNAME" value="root" force="true"/><env name="DB_PASSWORD" value="secret" force="true"/>#' \
+              -e 's#<env name="DB_DATABASE" value=":memory:"/>#<env name="DB_DATABASE" value="dukapos_test" force="true"/>#' \
+              phpunit.xml > phpunit.mysql.xml
+          php artisan test -c phpunit.mysql.xml

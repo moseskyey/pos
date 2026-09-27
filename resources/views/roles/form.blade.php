@@ -1,6 +1,6 @@
 @php $editing = $role->exists; @endphp
 <x-layouts.app :title="$editing ? __('Edit role') : __('New role')" :breadcrumbs="[__('Roles') => route('roles.index'), $editing ? $role->name : __('New')]">
-    <x-page-header :title="$editing ? config('dukapos.roles.'.$role->name.'.label', \Illuminate\Support\Str::headline($role->name)) : __('New role')" :subtitle="__('Tick the permissions this role should have.')" />
+    <x-page-header :title="$editing ? __(config('dukapos.roles.'.$role->name.'.label', \Illuminate\Support\Str::headline($role->name))) : __('New role')" :subtitle="__('Tick the permissions this role should have.')" />
 
     <form method="POST" action="{{ $editing ? route('roles.update', $role) : route('roles.store') }}" x-data="dirtyForm">
         @csrf @if ($editing) @method('PUT') @endif

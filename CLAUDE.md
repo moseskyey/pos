@@ -28,9 +28,9 @@ DukaPOS is a web-based, multi-branch Point of Sale and inventory system for Tanz
 
 | Layer | Choice |
 |---|---|
-| Backend | Laravel 12 (latest stable), PHP 8.3+ |
+| Backend | Laravel 13 (latest stable), PHP 8.3+ |
 | Database | MySQL 8 (InnoDB, utf8mb4) |
-| Frontend | Blade + **Bootstrap 5.3** (SCSS, custom theme) + **Livewire 3** + Alpine.js |
+| Frontend | Blade + **Bootstrap 5.3** (SCSS, custom theme) + **Livewire 4** + Alpine.js |
 | Icons | Bootstrap Icons |
 | Charts | Chart.js 4 |
 | Build | Vite |
@@ -363,14 +363,14 @@ tests/Feature  tests/Unit
 
 | Phase | Status | PR | Notes |
 |---|---|---|---|
-| 1 | ⬜ Not started | | |
-| 2 | ⬜ Not started | | |
-| 3 | ⬜ Not started | | |
-| 4 | ⬜ Not started | | |
-| 5 | ⬜ Not started | | |
-| 6 | ⬜ Not started | | |
-| 7 | ⬜ Not started | | |
-| 8 | ⬜ Not started | | |
+| 1 | ✅ Done | | Laravel 13 + Livewire 4 (latest stable at build time). Theme, layout, components, auth (email/phone, PIN, 2FA), roles, branches, users, settings, activity log |
+| 2 | ✅ Done | | Categories, brands, units/conversions, products, variants, barcodes (incl. scale), XLSX import/export, bulk prices, labels |
+| 3 | ✅ Done | | Stock ledger, adjustments + approval, transfers, stock takes, FEFO batches, alerts |
+| 4 | ✅ Done | | Shifts X/Z, cash in/out, POS screen + shortcuts, hold/resume, split payments, manager PIN, receipts/invoices |
+| 5 | ✅ Done | | Sales, voids, returns, quotations, layaway, customers, credit ledger, payments, statements, loyalty |
+| 6 | ✅ Done | | Suppliers, POs, GRN (moving average), bills/payments/aging, purchase returns, reorder, expenses + recurring |
+| 7 | ✅ Done | | Dashboard, 18 reports, queued Excel/PDF exports, notifications |
+| 8 | ✅ Done | | FastLipa (two-phase, signed idempotent callbacks, reconciliation), Beem SMS, fiscal hook, POS lock screen, backups UI, MySQL-verified, sw translations, DEPLOY.md, deploy.sh, CI |
 
 ---
 

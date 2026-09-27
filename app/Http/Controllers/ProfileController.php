@@ -130,6 +130,17 @@ class ProfileController extends Controller
             return response()->json(['ok' => false, 'message' => __('Incorrect PIN.')], 422);
         }
         $user->forceFill(['pin_attempts' => 0])->saveQuietly();
+        $request->session()->forget('pos_locked');
+
+        return response()->json(['ok' => true]);
+    }
+
+    /**
+     * Flag the terminal as locked so a reload keeps the lock screen up.
+     */
+    public function lock(Request $request): JsonResponse
+    {
+        $request->session()->put('pos_locked', true);
 
         return response()->json(['ok' => true]);
     }
