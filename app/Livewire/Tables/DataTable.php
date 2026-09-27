@@ -46,6 +46,9 @@ abstract class DataTable extends Component
 
     protected bool $selectable = false;
 
+    /** Optional Blade view rendered inside the component (e.g. a modal form). */
+    protected ?string $formView = null;
+
     abstract protected function query(): Builder;
 
     /** @return array<int, Column> */
@@ -256,6 +259,7 @@ abstract class DataTable extends Component
             'isExportable' => $this->exportable,
             'isSelectable' => $this->selectable || (bool) $this->bulkActions(),
             'table' => $this,
+            'formView' => $this->formView,
             'activeSort' => $this->sortField ?: $this->defaultSort,
             'activeDirection' => $this->sortDirection ?: $this->defaultDirection,
             'filtersActive' => trim($this->search) !== '' || collect($this->filters)->flatten()->filter(fn ($v) => $v !== null && $v !== '')->isNotEmpty(),

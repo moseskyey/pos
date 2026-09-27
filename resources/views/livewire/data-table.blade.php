@@ -151,4 +151,8 @@
             <div>{{ $rows->onEachSide(1)->links() }}</div>
         </div>
     @endif
+
+    @if ($formView)
+        @include($formView)
+    @endif
 </div>

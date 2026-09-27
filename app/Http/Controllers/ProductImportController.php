@@ -1,0 +1,86 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Exports\ArrayExport;
+use App\Services\ProductImportService;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\View\View;
+use Maatwebsite\Excel\Facades\Excel;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
+
+class ProductImportController extends Controller
+{
+    public function __construct(protected ProductImportService $service) {}
+
+    public function create(Request $request): View
+    {
+        abort_unless($request->user()->can('products.import'), 403);
+        $preview = null;
+        $token = $request->session()->get('product_import');
+        if ($token && Storage::disk('local')->exists("imports/$token.json")) {
+            $preview = json_decode(Storage::disk('local')->get("imports/$token.json"), true);
+        }
+
+        return view('products.import', ['preview' => $preview]);
+    }
+
+    public function upload(Request $request): RedirectResponse
+    {
+        abort_unless($request->user()->can('products.import'), 403);
+        $request->validate(['file' => ['required', 'file', 'mimes:xlsx,xls,csv', 'max:10240']]);
+
+        $token = bin2hex(random_bytes(8));
+        $path = $request->file('file')->storeAs('imports', "$token.".$request->file('file')->getClientOriginalExtension(), 'local');
+        $rows = $this->service->preview(Storage::disk('local')->path($path));
+        Storage::disk('local')->delete($path);
+        Storage::disk('local')->put("imports/$token.json", json_encode($rows));
+        $request->session()->put('product_import', $token);
+
+        if (! $rows) {
+            return back()->with('error', __('The file has no product rows.'));
+        }
+
+        return redirect()->route('products.import');
+    }
+
+    public function commit(Request $request): RedirectResponse
+    {
+        abort_unless($request->user()->can('products.import'), 403);
+        $token = $request->session()->pull('product_import');
+        abort_unless($token && Storage::disk('local')->exists("imports/$token.json"), 404);
+
+        $rows = json_decode(Storage::disk('local')->get("imports/$token.json"), true);
+        Storage::disk('local')->delete("imports/$token.json");
+        [$created, $updated, $skipped] = $this->service->commit($rows, $request->user());
+
+        return redirect()->route('products.index')->with('success', __('Import complete: :c created, :u updated, :s skipped.', ['c' => $created, 'u' => $updated, 's' => $skipped]));
+    }
+
+    public function cancel(Request $request): RedirectResponse
+    {
+        $token = $request->session()->pull('product_import');
+        if ($token) {
+            Storage::disk('local')->delete("imports/$token.json");
+        }
+
+        return redirect()->route('products.import');
+    }
+
+    public function template(Request $request): BinaryFileResponse
+    {
+        abort_unless($request->user()->can('products.import'), 403);
+
+        return Excel::download(new ArrayExport(ProductImportService::headings(), $this->service->templateRows(), 'Products'), 'dukapos-products-template.xlsx');
+    }
+
+    public function export(Request $request): BinaryFileResponse
+    {
+        abort_unless($request->user()->can('products.import'), 403);
+        activity('exports')->log('Exported all products');
+
+        return Excel::download(new ArrayExport(ProductImportService::headings(), $this->service->exportRows(), 'Products'), 'products-'.now()->format('Ymd').'.xlsx');
+    }
+}
