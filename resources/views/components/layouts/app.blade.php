@@ -240,6 +240,12 @@
         @endif
 
         <main id="main" class="app-content">
+        @if ($user?->hasRole('owner') && ($envWarnings = \App\Support\Environment::warnings(request()->getHost())))
+            <div class="alert alert-danger rounded-0 mb-0 small no-print" role="alert">
+                <i class="bi bi-shield-exclamation"></i> <strong>{{ __('Server configuration needs attention:') }}</strong>
+                {{ implode(' ', $envWarnings) }} <span class="text-body-secondary">{{ __('Then run: php artisan config:cache') }}</span>
+            </div>
+        @endif
             {{ $slot }}
         </main>
 

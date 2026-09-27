@@ -181,7 +181,7 @@ backups. Updates after the first install use `./deploy.sh`.
 ## Tech stack
 
 Laravel 13 · PHP 8.4+ · Livewire 4 + Alpine.js · Bootstrap 5.3 (custom SCSS theme, Inter, Bootstrap Icons) ·
-Chart.js · Tom Select · Vite · MySQL 8 / MariaDB (SQLite for local use) · spatie/laravel-permission ·
+Chart.js · Tom Select · Vite · MySQL 8 / MariaDB 10.11+ (SQLite for local use) · spatie/laravel-permission ·
 spatie/laravel-activitylog · spatie/laravel-backup · maatwebsite/excel · barryvdh/laravel-dompdf · Pest.
 
 The full specification is in [CLAUDE.md](CLAUDE.md).

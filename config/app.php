@@ -41,6 +41,9 @@ return [
 
     'debug' => (bool) env('APP_DEBUG', false),
 
+    // Allow debug pages on a non-local host (never do this on a live shop).
+    'debug_remote' => (bool) env('APP_DEBUG_REMOTE', false),
+
     /*
     |--------------------------------------------------------------------------
     | Application URL

@@ -229,7 +229,7 @@
                         <div class="row g-2">
                             <div class="col-md-5"><x-input wire:model="newCustomer.name" :placeholder="__('Name')" class="mb-0" aria-label="{{ __('Name') }}" /></div>
                             <div class="col-md-4"><x-input wire:model="newCustomer.phone" placeholder="0712 345 678" class="mb-0" aria-label="{{ __('Phone') }}" /></div>
-                            <div class="col-md-3"><x-select wire:model="newCustomer.type" :options="['retail' => __('Retail'), 'wholesale' => __('Wholesale')]" class="mb-0" aria-label="{{ __('Type') }}" /></div>
+                            <div class="col-md-3"><x-select wire:model="newCustomer.type" :options="auth()->user()->can('customers.credit') ? ['retail' => __('Retail'), 'wholesale' => __('Wholesale')] : ['retail' => __('Retail')]" class="mb-0" aria-label="{{ __('Type') }}" /></div>
                         </div>
                     </div>
                 @endcan

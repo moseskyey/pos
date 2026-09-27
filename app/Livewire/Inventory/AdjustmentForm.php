@@ -45,7 +45,7 @@ class AdjustmentForm extends Component
             'on_hand' => $branchId ? (float) app(StockService::class)->available($branchId, $product->id) : null,
             'direction' => AdjustmentReason::from($this->reason)->direction() ?? 'in',
             'quantity' => $quantity ?? 1,
-            'unit_cost' => (float) $product->cost_price,
+            'unit_cost' => auth()->user()->can('products.view_cost') ? (float) $product->cost_price : null,
             'batch_no' => '',
             'expiry_date' => '',
         ];

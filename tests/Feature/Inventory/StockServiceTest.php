@@ -102,7 +102,8 @@ it('posts stock take variances relative to the frozen snapshot', function () {
     $take = $service->create($this->branch->id, $this->user);
     $this->stock->issue($this->branch->id, $product, 2, MovementType::Sale); // sale during count
     $service->count($take, $product->id, 17, $this->user); // counted 17 vs frozen 20 → -3
-    $service->post($take, $this->user);
+    $service->submit($take, $this->user);
+    $service->post($take->fresh(), $this->user);
 
     expect($take->fresh()->status)->toBe('posted')
         ->and($this->stock->available($this->branch->id, $product->id))->toBe('15.000')

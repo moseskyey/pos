@@ -1,6 +1,7 @@
 # Deploying DukaPOS
 
-This guide installs DukaPOS on a fresh **Ubuntu 22.04 / 24.04** VPS. The stack is Nginx, PHP 8.4-FPM, MySQL 8,
+This guide installs DukaPOS on a fresh **Ubuntu 22.04 / 24.04** VPS. The stack is Nginx, PHP 8.4-FPM, MySQL 8
+(MariaDB 10.11+ works too),
 Supervisor for the queue worker, cron for the scheduler, and Let's Encrypt for SSL. Replace `pos.example.co.tz`
 with your domain, and `CHANGE_ME` with strong passwords.
 

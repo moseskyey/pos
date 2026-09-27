@@ -22,7 +22,8 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
-        Model::preventLazyLoading(! $this->app->isProduction());
+        // Strict lazy-loading only while developing; never turns a live page into a 500.
+        Model::preventLazyLoading($this->app->environment('local', 'testing') && config('app.debug'));
         Model::preventAccessingMissingAttributes(false);
         Paginator::useBootstrapFive();
 

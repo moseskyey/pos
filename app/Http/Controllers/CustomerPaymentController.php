@@ -37,7 +37,10 @@ class CustomerPaymentController extends Controller
     {
         $this->authorize('create', CustomerPayment::class);
         $data = $request->validated();
-        $branchId = $context->currentId() ?? $request->user()->default_branch_id ?? $context->accessibleIds()[0];
+        $branchId = $context->currentId();
+        if (! $branchId) {
+            return back()->withInput()->with('error', __('Select a single branch in the navbar first.'));
+        }
         try {
             $payment = $service->receive(Customer::findOrFail($data['customer_id']), $data['amount'], PaymentMethod::from($data['method']), $request->user(), $branchId, $data['reference'] ?? null, $data['note'] ?? null, $data['idempotency_key'] ?? null);
         } catch (BusinessRuleException $e) {

@@ -15,9 +15,15 @@ class CustomerRequest extends FormRequest
 
     protected function prepareForValidation(): void
     {
+        if (! $this->user()->can('customers.credit')) {
+            // These fields are read-only for this user; keep the current values.
+            $customer = $this->route('customer');
+            $this->merge(['type' => $customer?->type ?? 'retail', 'credit_limit' => $customer?->credit_limit ?? 0]);
+            $this->request->remove('opening_balance');
+        }
         $this->merge([
             'phone' => $this->filled('phone') ? (PhoneNumber::normalize($this->input('phone')) ?? $this->input('phone')) : null,
-            'credit_limit' => $this->input('credit_limit') !== null ? str_replace(',', '', (string) $this->input('credit_limit')) : 0,
+            'credit_limit' => $this->filled('credit_limit') && is_scalar($this->input('credit_limit')) ? str_replace(',', '', (string) $this->input('credit_limit')) : ($this->route('customer')?->credit_limit ?? 0),
         ]);
     }
 
@@ -37,6 +43,23 @@ class CustomerRequest extends FormRequest
             'notes' => ['nullable', 'string', 'max:2000'],
             'is_active' => ['boolean'],
         ];
+    }
+
+    /**
+     * Validated data, minus fields the user may not set: credit limit,
+     * wholesale status and opening balance need customers.credit.
+     */
+    public function customerData(): array
+    {
+        $data = $this->validated();
+        if (! $this->user()->can('customers.credit')) {
+            unset($data['credit_limit'], $data['type'], $data['opening_balance']);
+            if (! $this->route('customer')) {
+                $data += ['credit_limit' => 0, 'type' => 'retail', 'opening_balance' => 0];
+            }
+        }
+
+        return $data;
     }
 
     public function messages(): array

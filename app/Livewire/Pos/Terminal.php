@@ -129,7 +129,7 @@ class Terminal extends Component
         $this->cartDiscountType = $cart['cart_discount_type'];
         $this->cartDiscountValue = $cart['cart_discount_value'];
         foreach ($cart['lines'] as $line) {
-            $this->addProduct($line['product_id'], $line['product_unit_id'], $line['qty']);
+            $this->addLine($line['product_id'], $line['product_unit_id'], $line['qty']);
             $key = $this->selectedLine;
             if ($key && $line['price_override']) {
                 $this->cart[$key]['unit_price'] = $line['unit_price'];
@@ -200,7 +200,7 @@ class Terminal extends Component
         }
         $match = app(ProductService::class)->findByBarcode($term);
         if ($match) {
-            $this->addProduct($match['product']->id, $match['unit']?->id, $match['quantity'], $match['line_total'] ?? null);
+            $this->addLine($match['product']->id, $match['unit']?->id, $match['quantity'], $match['quantity'] !== null ? $term : null);
             $this->search = '';
             unset($this->products);
 
@@ -219,7 +219,17 @@ class Terminal extends Component
         }
     }
 
-    public function addProduct(int $productId, ?int $unitId = null, $quantity = null, $lineTotal = null): void
+    /** Tap / click a product (callable from the browser: never takes a price or quantity). */
+    public function addProduct(int $productId, ?int $unitId = null): void
+    {
+        $this->addLine($productId, $unitId);
+    }
+
+    /**
+     * Add a line. $scaleBarcode is the scanned price-embedded label: the server
+     * re-reads it at checkout, so the browser can never set a line total.
+     */
+    protected function addLine(int $productId, ?int $unitId = null, $quantity = null, ?string $scaleBarcode = null): void
     {
         $product = Product::with(['units.unit', 'unit'])->find($productId);
         if (! $product || ! $product->is_active || $product->has_variants) {
@@ -230,9 +240,9 @@ class Terminal extends Component
         $quantity = $quantity !== null ? (float) $quantity : 1.0;
 
         // Increment an existing identical line (not for scale barcodes).
-        if ($lineTotal === null) {
+        if ($scaleBarcode === null) {
             foreach ($this->cart as $key => $line) {
-                if ($line['product_id'] === $product->id && $line['product_unit_id'] === $unitId && empty($line['line_total_override'])) {
+                if ($line['product_id'] === $product->id && $line['product_unit_id'] === $unitId && empty($line['scale_barcode'])) {
                     $this->cart[$key]['qty'] = (float) Qty::add($line['qty'], $quantity);
                     $this->selectedLine = $key;
                     $this->reprice($key);
@@ -257,7 +267,7 @@ class Terminal extends Component
             'list_price' => 0,
             'tier' => 'retail',
             'price_override' => false,
-            'line_total_override' => $lineTotal,
+            'scale_barcode' => $scaleBarcode,
             'discount_type' => null,
             'discount_value' => null,
             'tax_rate' => (float) $product->taxRate(),
@@ -351,7 +361,7 @@ class Terminal extends Component
     {
         foreach ($lines as $line) {
             if (isset($line['product_id'])) {
-                $this->addProduct((int) $line['product_id'], $line['product_unit_id'] ?? null, $line['qty'] ?? 1);
+                $this->addLine((int) $line['product_id'], $line['product_unit_id'] ?? null, $line['qty'] ?? 1);
             }
         }
     }
@@ -368,8 +378,13 @@ class Terminal extends Component
         $this->cart[$key]['unit_price'] = (float) $resolved['price'];
         $this->cart[$key]['list_price'] = (float) ($unit ? $unit->retail_price : $product->retail_price);
         $this->cart[$key]['tier'] = $resolved['tier'];
-        if (! empty($line['line_total_override'])) {
-            $this->cart[$key]['unit_price'] = (float) Money::div($line['line_total_override'], $line['qty']);
+        if (! empty($line['scale_barcode'])) {
+            // Display only; SaleService recomputes this from the barcode.
+            $scale = app(ProductService::class)->findByBarcode($line['scale_barcode']);
+            $this->cart[$key]['qty'] = (float) ($scale['quantity'] ?? $line['qty']);
+            if (! empty($scale['line_total']) && (float) $this->cart[$key]['qty'] > 0) {
+                $this->cart[$key]['unit_price'] = (float) Money::div($scale['line_total'], $this->cart[$key]['qty']);
+            }
         }
     }
 
@@ -418,6 +433,9 @@ class Terminal extends Component
             'newCustomer.phone' => ['nullable', 'regex:/^255[67]\d{8}$/', 'unique:customers,phone'],
             'newCustomer.type' => ['required', 'in:retail,wholesale'],
         ], ['newCustomer.phone.regex' => __('Enter a valid Tanzanian mobile number.')], ['newCustomer.name' => 'name', 'newCustomer.phone' => 'phone'])['newCustomer'];
+        if (! auth()->user()->can('customers.credit')) {
+            $data['type'] = 'retail'; // wholesale prices need customers.credit
+        }
         $customer = Customer::create($data);
         $this->newCustomer = ['name' => '', 'phone' => '', 'type' => 'retail'];
         $this->selectCustomer($customer->id);
@@ -518,7 +536,7 @@ class Terminal extends Component
         $this->cartDiscountType = $cart['cart_discount_type'];
         $this->cartDiscountValue = $cart['cart_discount_value'];
         foreach ($cart['lines'] as $line) {
-            $this->addProduct($line['product_id'], $line['product_unit_id'], $line['qty']);
+            $this->addLine($line['product_id'], $line['product_unit_id'], $line['qty']);
             $key = $this->selectedLine;
             if ($line['price_override']) {
                 $this->cart[$key]['unit_price'] = $line['unit_price'];
@@ -766,7 +784,7 @@ class Terminal extends Component
                 'factor' => $l['factor'],
                 'unit_price' => $l['unit_price'],
                 'price_override' => $l['price_override'],
-                'line_total_override' => $l['line_total_override'] ?? null,
+                'scale_barcode' => $l['scale_barcode'] ?? null,
                 'discount_type' => $l['discount_type'],
                 'discount_value' => $l['discount_value'],
             ], $this->cart)),

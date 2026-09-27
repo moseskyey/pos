@@ -29,7 +29,7 @@ DukaPOS is a web-based, multi-branch Point of Sale and inventory system for Tanz
 | Layer | Choice |
 |---|---|
 | Backend | Laravel 13 (latest stable), PHP 8.4+ (Symfony 8 / spatie dependencies need 8.4) |
-| Database | MySQL 8 (InnoDB, utf8mb4) |
+| Database | MySQL 8 or MariaDB 10.11+ (InnoDB, utf8mb4); CI tests MySQL 8, MariaDB verified |
 | Frontend | Blade + **Bootstrap 5.3** (SCSS, custom theme) + **Livewire 4** + Alpine.js |
 | Icons | Bootstrap Icons |
 | Charts | Chart.js 4 |

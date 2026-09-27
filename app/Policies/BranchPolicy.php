@@ -15,7 +15,7 @@ class BranchPolicy extends BasePolicy
     public function view(User $user, Model $branch): bool
     {
         /** @var Branch $branch */
-        return $user->can('branches.view') && ($user->can('branches.view_all') || $user->branches->contains($branch->id));
+        return $user->can('branches.view') && ($user->can('branches.view_all') || $user->branches()->whereKey($branch->id)->exists());
     }
 
     public function update(User $user, Model $branch): bool

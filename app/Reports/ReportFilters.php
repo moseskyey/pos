@@ -30,21 +30,38 @@ class ReportFilters
             'last_month' => [$now->copy()->subMonthNoOverflow()->startOfMonth(), $now->copy()->subMonthNoOverflow()->endOfMonth()],
             'year' => [$now->copy()->startOfYear(), $now->copy()->endOfDay()],
             default => [
-                $from ? Carbon::parse($from)->startOfDay() : $now->copy()->startOfMonth(),
-                $to ? Carbon::parse($to)->endOfDay() : $now->copy()->endOfDay(),
+                static::date($from)?->startOfDay() ?? $now->copy()->startOfMonth(),
+                static::date($to)?->endOfDay() ?? $now->copy()->endOfDay(),
             ],
         };
     }
 
+    /** A Y-m-d style date from user input, or null when missing or invalid (never throws). */
+    protected static function date(mixed $value): ?Carbon
+    {
+        if (! is_string($value) || ! preg_match('/^\d{4}-\d{2}-\d{2}/', $value)) {
+            return null;
+        }
+        try {
+            return Carbon::parse($value);
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
     public static function fromRequest(Request $request, array $branchIds, string $defaultPreset = 'month'): self
     {
-        $preset = $request->query('preset', $request->filled('from') ? 'custom' : $defaultPreset);
-        [$from, $to] = static::range($preset, $request->query('from'), $request->query('to'));
+        $scalar = fn ($v) => is_scalar($v) ? (string) $v : null;
+        $preset = $scalar($request->query('preset')) ?? ($request->filled('from') ? 'custom' : $defaultPreset);
+        [$from, $to] = static::range($preset, $scalar($request->query('from')), $scalar($request->query('to')));
         if ($from->gt($to)) {
             [$from, $to] = [$to->copy()->startOfDay(), $from->copy()->endOfDay()];
         }
 
-        return new self($from, $to, $branchIds, $request->except(['preset', 'from', 'to', 'page', 'format']), $preset);
+        // Other filters are plain values; ignore anything array-shaped from the query string.
+        $extra = array_filter($request->except(['preset', 'from', 'to', 'page', 'format']), fn ($v) => is_scalar($v) || $v === null);
+
+        return new self($from, $to, $branchIds, $extra, $preset);
     }
 
     public static function fromArray(array $data): self
