@@ -64,7 +64,7 @@ function fastLipaWebhook(PaymentIntent $intent, string $event, ?string $amount =
 {
     $status = $event === 'payment.completed' ? 'COMPLETED' : 'FAILED';
 
-    return test()->postJson('/api/payments/callback/fastlipa', [
+    return test()->postJson(route('payments.callback', 'fastlipa'), [
         'event' => $event,
         'timestamp' => now()->toIso8601String(),
         'data' => [
@@ -168,10 +168,10 @@ it('rejects a wrong signature but accepts unsigned webhooks via status query', f
 
 it('acknowledges webhooks for references it does not know', function () {
     initiateIntent();
-    $this->postJson('/api/payments/callback/fastlipa', ['event' => 'payment.completed', 'data' => [
+    $this->postJson(route('payments.callback', 'fastlipa'), ['event' => 'payment.completed', 'data' => [
         'tranID' => 'EUVO6K1790510391', 'reference' => 'CP-AYWCTFLRBF', 'amount' => '360000', 'status' => 'COMPLETED',
     ]])->assertOk();
-    $this->postJson('/api/payments/callback/fastlipa', ['event' => 'payment.completed'])->assertOk();
+    $this->postJson(route('payments.callback', 'fastlipa'), ['event' => 'payment.completed'])->assertOk();
 
     expect(PaymentCallback::where('result', 'unknown_reference')->count())->toBe(2)
         ->and(PaymentIntent::first()->status)->toBe('processing');

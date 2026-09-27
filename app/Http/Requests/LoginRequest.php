@@ -2,8 +2,11 @@
 
 namespace App\Http\Requests;
 
+use App\Models\Platform\Tenant;
+use App\Models\Platform\TenantLogin;
 use App\Models\User;
 use App\Support\PhoneNumber;
+use App\Tenancy\TenantManager;
 use Illuminate\Auth\Events\Lockout;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\Hash;
@@ -31,19 +34,26 @@ class LoginRequest extends FormRequest
         return ['login' => __('email or phone')];
     }
 
-    /** Resolve and verify the user without logging them in. */
+    /**
+     * Resolve and verify the user without logging them in. The email or phone
+     * identifies the business; its database becomes the active one.
+     */
     public function authenticateUser(): User
     {
         $this->ensureIsNotRateLimited();
 
         $login = trim($this->string('login'));
-        $query = User::query();
-        if (str_contains($login, '@')) {
-            $query->where('email', strtolower($login));
-        } else {
-            $query->where('phone', PhoneNumber::normalize($login) ?? $login);
+        [$field, $value] = str_contains($login, '@')
+            ? ['email', strtolower($login)]
+            : ['phone', PhoneNumber::normalize($login) ?? $login];
+
+        $entry = TenantLogin::where($field, $value)->first();
+        $tenant = $entry ? Tenant::find($entry->tenant_id) : null;
+        $user = null;
+        if ($tenant) {
+            app(TenantManager::class)->initialize($tenant);
+            $user = User::whereKey($entry->user_id)->where($field, $value)->first();
         }
-        $user = $query->first();
 
         if (! $user || ! Hash::check($this->string('password'), $user->password)) {
             RateLimiter::hit($this->throttleKey(), 60);
@@ -52,6 +62,10 @@ class LoginRequest extends FormRequest
 
         if (! $user->is_active) {
             throw ValidationException::withMessages(['login' => __('Your account has been deactivated.')]);
+        }
+
+        if ($tenant->status() === Tenant::SUSPENDED) {
+            throw ValidationException::withMessages(['login' => __('This business account is suspended. Please contact support.')]);
         }
 
         RateLimiter::clear($this->throttleKey());

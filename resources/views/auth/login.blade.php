@@ -37,7 +37,16 @@
         </button>
     </form>
 
-    @if (app()->environment('local') && \App\Models\User::where('email', 'owner@dukapos.test')->exists())
+    @if (\Illuminate\Support\Facades\Route::has('register') && \App\Support\PlatformSettings::get('signups_enabled'))
+        <p class="text-center small text-body-secondary mt-4 mb-0">
+            {{ __('New to DukaPOS?') }} <a href="{{ route('register') }}" class="fw-semibold text-decoration-none">{{ __('Create your business account') }}</a>
+            @if ((int) \App\Support\PlatformSettings::get('trial_days') > 0)
+                · {{ __(':count-day free trial', ['count' => (int) \App\Support\PlatformSettings::get('trial_days')]) }}
+            @endif
+        </p>
+    @endif
+
+    @if (app()->environment('local') && \App\Models\Platform\TenantLogin::where('email', 'owner@dukapos.test')->exists())
         <div class="card bg-surface mt-4 border-dashed">
             <div class="card-body small py-3">
                 <div class="fw-semibold mb-1"><i class="bi bi-info-circle text-primary"></i> {{ __('Demo accounts') }} <span class="text-body-secondary fw-normal">({{ __('password') }}: <code>password</code>)</span></div>

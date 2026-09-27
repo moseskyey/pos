@@ -1,8 +1,8 @@
-<div x-data="posTerminal({ userId: {{ auth()->id() }} })" x-on:keydown.window="onKey($event)"
+<div x-data="posTerminal({ userId: @js(device_key()) })" x-on:keydown.window="onKey($event)"
      x-on:scan-ok.window="dpBeep(true)" x-on:scan-fail.window="dpBeep(false)"
      x-on:focus-search.window="focusSearch()" x-on:sale-completed.window="afterSale($event.detail)">
 
-    <div wire:ignore x-data="offlineStatus({ userId: {{ auth()->id() }}, offlineUrl: @js(route('pos.offline')) })" class="no-print">
+    <div wire:ignore x-data="offlineStatus({ userId: @js(device_key()), offlineUrl: @js(route('pos.offline')) })" class="no-print">
         <div class="alert alert-danger d-flex align-items-center gap-2 m-2 mb-0 py-2" x-show="!online" x-cloak role="alert">
             <i class="bi bi-wifi-off fs-5"></i>
             <span class="me-auto">{{ __('Connection lost. Keep selling in the offline till; sales sync when the connection is back.') }}</span>

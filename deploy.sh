@@ -23,8 +23,10 @@ git pull --ff-only origin "$BRANCH"
 echo "==> Installing PHP dependencies"
 composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader
 
-echo "==> Migrating database"
-$PHP artisan migrate --force
+echo "==> Migrating databases"
+$PHP artisan migrate --force                 # central: businesses, plans, billing
+$PHP artisan tenants:adopt --auto            # first multi-business deploy: the existing shop becomes business #1
+$PHP artisan tenants:migrate --force         # every business database
 
 echo "==> Building assets"
 npm ci --no-audit --no-fund

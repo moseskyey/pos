@@ -3,7 +3,7 @@
 use App\Http\Controllers\SettingsController;
 use App\Models;
 use App\Reports\ReportRegistry;
-use Database\Seeders\DatabaseSeeder;
+use Database\Seeders\TenantDatabaseSeeder;
 use Illuminate\Routing\Route;
 use Illuminate\Support\Facades\Route as Router;
 use Spatie\Permission\Models\Role;
@@ -14,7 +14,7 @@ use Spatie\Permission\Models\Role;
  * MySQL as well as SQLite).
  */
 it('renders every page with demo data for every role', function () {
-    $this->seed(DatabaseSeeder::class);
+    $this->seed(TenantDatabaseSeeder::class);
 
     $skip = ['logout', 'lock', 'up', 'storage.', 'livewire.', 'impersonate.', 'files.show', 'backups.download', 'notifications.open', 'password.reset', 'receipts.verify'];
     $models = [

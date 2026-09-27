@@ -42,6 +42,7 @@ DukaPOS is a web-based, multi-branch Point of Sale and inventory system for Tanz
 | Queue | database driver (Redis optional) |
 | Tests | Pest |
 | Code style | Laravel Pint (default preset) |
+| Multi-tenancy | Database per business (`App\Tenancy`): central DB for businesses, plans, billing and platform admins; the default connection is switched to the business's database per request/job |
 
 **No Tailwind anywhere.** Remove Breeze's Tailwind after scaffolding and restyle every auth view with Bootstrap.
 
@@ -379,6 +380,17 @@ tests/Feature  tests/Unit
 - Direct ESC/POS printing with the cash drawer.
 - Offline till: service worker, local queue, idempotent sync with review flags.
 - Model policies and Form Requests across all controllers (§3.7).
+- Multi-business SaaS:
+  - Each business has its own database, files, cache keys, settings and backups.
+  - Sign-up at `/register` with a free trial; sign-in finds the business from the email or phone.
+  - Plans with branch, user and product limits, plus a trial → active → grace → expired lifecycle.
+  - Subscription payments by FastLipa (platform account) and manual cash/bank payments, with invoices and reminders.
+  - Platform admin panel at `/admin`.
+  - Existing single-shop installs are adopted as business #1 with `tenants:adopt`.
+  - Rules for new code:
+    - Central models set `$connection = 'central'`; business code keeps using the default connection.
+    - Business-only artisan commands run through `tenants:run`.
+    - Tests run inside test business #1 (`tests/RefreshTenantDatabase.php`).
 
 ---
 

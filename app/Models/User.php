@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Support\PhoneNumber;
+use App\Tenancy\SyncsTenantLogin;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -20,7 +21,7 @@ use Spatie\Permission\Traits\HasRoles;
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
-    use HasFactory, HasRoles, LogsActivity, Notifiable, SoftDeletes;
+    use HasFactory, HasRoles, LogsActivity, Notifiable, SoftDeletes, SyncsTenantLogin;
 
     protected $fillable = [
         'name', 'email', 'phone', 'password', 'is_active', 'avatar_path',

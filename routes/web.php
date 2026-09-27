@@ -5,17 +5,17 @@ use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\PasswordResetController;
 use App\Http\Controllers\Auth\TwoFactorChallengeController;
 use App\Http\Controllers\BackupController;
+use App\Http\Controllers\BillingController;
 use App\Http\Controllers\BranchController;
 use App\Http\Controllers\BranchSwitchController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\FileController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ProfileController;
-use App\Http\Controllers\ReceiptController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\SearchController;
 use App\Http\Controllers\SettingsController;
-use App\Http\Controllers\ShareController;
+use App\Http\Controllers\SignupController;
 use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
 
@@ -29,14 +29,11 @@ Route::middleware('guest')->group(function () {
     Route::post('/forgot-password', [PasswordResetController::class, 'email'])->middleware('throttle:6,1')->name('password.email');
     Route::get('/reset-password/{token}', [PasswordResetController::class, 'reset'])->name('password.reset');
     Route::post('/reset-password', [PasswordResetController::class, 'update'])->name('password.store');
+    Route::get('/register', [SignupController::class, 'create'])->name('register');
+    Route::post('/register', [SignupController::class, 'store'])->middleware('throttle:signup');
 });
 
 Route::post('/preferences/locale', [ProfileController::class, 'locale'])->name('preferences.locale');
-Route::get('/verify/{number}', [ReceiptController::class, 'verify'])->name('receipts.verify');
-Route::middleware(['signed', 'throttle:30,1'])->group(function () {
-    Route::get('/share/invoice/{sale}', [ShareController::class, 'invoice'])->whereNumber('sale')->name('share.invoice');
-    Route::get('/share/statement/{customer}', [ShareController::class, 'statement'])->name('share.statement');
-});
 
 Route::middleware('auth')->group(function () {
     Route::post('/logout', [LoginController::class, 'destroy'])->name('logout');
@@ -44,8 +41,18 @@ Route::middleware('auth')->group(function () {
     Route::post('/two-factor-challenge', [TwoFactorChallengeController::class, 'store'])->middleware('throttle:10,1')->name('two-factor.store');
 });
 
+// ------------------------------------------------ Subscription & billing ----
+// Reachable after the subscription ends, so the business can renew.
+Route::middleware(['auth', 'active'])->controller(BillingController::class)->group(function () {
+    Route::get('/billing', 'index')->name('billing.index');
+    Route::post('/billing/pay', 'pay')->middleware('throttle:payments')->name('billing.pay');
+    Route::get('/billing/payments/{payment}', 'status')->name('billing.status');
+    Route::get('/billing/invoices/{payment}', 'invoice')->name('billing.invoice');
+    Route::post('/impersonate/admin/leave', 'leaveAdminImpersonation')->name('impersonate.admin.leave');
+});
+
 // -------------------------------------------------------- Authenticated ----
-Route::middleware(['auth', 'active'])->group(function () {
+Route::middleware(['auth', 'active', 'subscribed'])->group(function () {
     Route::get('/dashboard', DashboardController::class)->name('dashboard');
     Route::get('/search', SearchController::class)->name('search');
     Route::get('/files/{path}', [FileController::class, 'show'])->where('path', '.*')->name('files.show');

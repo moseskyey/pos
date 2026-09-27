@@ -7,6 +7,7 @@ use App\Http\Requests\LoginRequest;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cookie;
 use Illuminate\View\View;
 
 class LoginController extends Controller
@@ -22,6 +23,12 @@ class LoginController extends Controller
 
         Auth::login($user, $request->boolean('remember'));
         $request->session()->regenerate();
+        $request->session()->put('tenant_id', tenant()->id);
+        $request->session()->forget(['admin_impersonator_id', 'impersonator_id']);
+        if ($request->boolean('remember')) {
+            // Lets "Remember me" find the business after the session has expired.
+            Cookie::queue(config('tenancy.cookie'), (string) tenant()->id, 60 * 24 * 365 * 5);
+        }
 
         if ($user->hasTwoFactorEnabled()) {
             $request->session()->put('2fa_pending', true);
@@ -42,6 +49,7 @@ class LoginController extends Controller
         }
 
         Auth::guard('web')->logout();
+        Cookie::queue(Cookie::forget(config('tenancy.cookie')));
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 

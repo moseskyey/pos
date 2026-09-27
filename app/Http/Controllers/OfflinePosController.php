@@ -77,7 +77,8 @@ class OfflinePosController extends Controller
     /** Session check + fresh CSRF token before syncing (the cached page's token may be stale). */
     public function ping(Request $request): JsonResponse
     {
-        return response()->json(['user_id' => $request->user()->id, 'csrf' => csrf_token()]);
+        // The browser checks this matches the key its offline queue is stored under.
+        return response()->json(['user_id' => device_key(), 'csrf' => csrf_token()]);
     }
 
     public function sync(OfflineSyncRequest $request, SaleService $sales, ShiftService $shifts): JsonResponse

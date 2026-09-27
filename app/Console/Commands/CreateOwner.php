@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Console\Commands\Concerns\RequiresTenant;
 use App\Models\Branch;
 use App\Models\User;
 use Database\Seeders\RolesAndPermissionsSeeder;
@@ -17,6 +18,8 @@ use Spatie\Permission\Models\Role;
  */
 class CreateOwner extends Command
 {
+    use RequiresTenant;
+
     protected $signature = 'dukapos:create-owner
         {--name= : Owner full name}
         {--email= : Owner email}
@@ -28,6 +31,10 @@ class CreateOwner extends Command
 
     public function handle(): int
     {
+        if ($this->missingTenant()) {
+            return self::FAILURE;
+        }
+
         if (! Role::where('name', 'owner')->exists()) {
             $this->call('db:seed', ['--class' => RolesAndPermissionsSeeder::class, '--force' => true]);
         }

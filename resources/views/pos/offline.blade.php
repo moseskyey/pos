@@ -4,7 +4,8 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <meta name="dp-user" content="{{ auth()->id() }}">
+    <meta name="dp-user" content="{{ device_key() }}">
+    @if ($legacyKey = legacy_device_key())<meta name="dp-legacy-user" content="{{ $legacyKey }}">@endif
     <meta name="dp-sw" content="{{ asset('sw.js') }}">
     <meta name="dp-offline-ping" content="{{ route('pos.offline.ping') }}">
     <meta name="dp-offline-sync" content="{{ route('pos.offline.sync') }}">
@@ -15,7 +16,7 @@
 </head>
 <body class="pos-mode offline-till">
 <div class="container-fluid py-3" x-data="offlineTill(@js([
-        'userId' => auth()->id(),
+        'userId' => device_key(),
         'catalogUrl' => route('pos.offline.catalog'),
         'pingUrl' => route('pos.offline.ping'),
         'syncUrl' => route('pos.offline.sync'),

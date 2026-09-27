@@ -8,6 +8,8 @@ priced in TZS with 18% VAT, M-Pesa / Mixx by Yas / Airtel Money / HaloPesa, and 
 - A fast, keyboard-first POS screen that works with barcode scanners, split payments, hold/resume and manager PINs.
 - A full stock ledger: every quantity change is recorded, with FEFO batches and expiry, transfers and stock takes.
 - The numbers an owner needs: dashboard, 18 reports, VAT return helper, profit & loss, and debt aging.
+- Runs as a subscription service for many businesses: each shop signs up, gets its own database and a free
+  trial, and pays for a plan by mobile money. A platform admin panel manages every business and subscription.
 
 ---
 
@@ -30,7 +32,7 @@ composer run setup      # install PHP + JS deps, create .env, key, SQLite DB, mi
 composer run dev        # starts the web server, queue worker, logs and Vite together
 ```
 
-Open <http://localhost:8000> and sign in with one of the demo accounts (password **`password`**):
+Open <http://localhost:8000> and sign in with one of the demo shop accounts (password **`password`**):
 
 | Role | Email | PIN |
 |---|---|---|
@@ -42,9 +44,13 @@ Open <http://localhost:8000> and sign in with one of the demo accounts (password
 | Storekeeper | `store@dukapos.test` | – |
 | Accountant | `accounts@dukapos.test` | – |
 
-The demo seeder creates two branches (DSM01 Kariakoo, DSM02 Mbezi), about 60 Tanzanian products, customers
-with debts, suppliers, purchase orders and 30 days of sales. Demo data is only seeded when `APP_ENV` is
-`local`, `testing` or `demo`.
+The platform admin panel is at <http://localhost:8000/admin>: sign in as **`admin@dukapos.test`** / `password`.
+New businesses can sign up at <http://localhost:8000/register>.
+
+The demo seeder creates the admin, four subscription plans and a demo business ("DukaPOS Demo Store", in its own
+database) with two branches (DSM01 Kariakoo, DSM02 Mbezi), about 60 Tanzanian products, customers with debts,
+suppliers, purchase orders and 30 days of sales. Demo data is only seeded when `APP_ENV` is `local`, `testing` or
+`demo`.
 
 ### Manual setup
 
@@ -52,17 +58,37 @@ with debts, suppliers, purchase orders and 30 days of sales. Demo data is only s
 composer install
 cp .env.example .env
 php artisan key:generate
-touch database/database.sqlite        # or configure MySQL in .env
-php artisan migrate --seed
+touch database/database.sqlite        # the central database; or configure MySQL in .env
+php artisan migrate --seed            # central tables + plans; outside production also the demo business
 php artisan storage:link
 npm install && npm run build         # compiled assets are not committed
 php artisan serve
 php artisan queue:work               # exports, SMS and notifications run on the queue
 ```
 
-To use MySQL 8 / MariaDB instead of SQLite, set `DB_CONNECTION=mysql` and the `DB_*` values in `.env`.
+To use MySQL 8 / MariaDB instead of SQLite, set `DB_CONNECTION=mysql` and the `DB_*` values in `.env`. The
+database user must be allowed to create one database per business (see [DEPLOY.md](DEPLOY.md#2-database)).
 
 ## Features
+
+**Subscriptions & platform admin (SaaS).**
+- One install serves many businesses. Each business has **its own database** and its own files, backups, settings
+  and users; nothing is shared between shops.
+- Self-service sign-up at `/register` with a free trial (length set by the admin). Users sign in with their email or
+  phone, and the system finds their business.
+- Plans with a price, billing interval and limits on branches, active users and products.
+- Owners pay from **Settings → Subscription** by mobile money (FastLipa STK push to the platform's account). Payments
+  are confirmed with FastLipa's status API before the subscription is extended, webhooks are idempotent, and a
+  sweep catches missed ones. Invoices as PDF.
+- Trial → active → grace period → expired: an expired business is sent to its billing page (its data is kept). Owners
+  get reminders in the app and by email 7, 3 and 1 days before access ends.
+- **Platform admin panel** (`/admin`, separate login):
+  - dashboard with MRR, revenue and sign-up charts, businesses ending soon and recent payments
+  - businesses: create, edit, extend, change plan, record cash/bank payments, suspend, delete/restore/purge,
+    **login as owner**, reset a user's password, deactivate users, usage against plan limits
+  - payments (verify with FastLipa, refund), plans, announcements shown to all or one business, a directory of
+    every user, admins (super and support), platform settings and an audit log of every admin action
+- An existing single-shop install is adopted as business #1 in place on the first `./deploy.sh`.
 
 **Foundation.**
 - Branches with tills/registers.
@@ -152,13 +178,16 @@ document number prefixes.
 
 | What | Where |
 |---|---|
-| FastLipa API key, URL, webhook secret | Settings → Payment methods (stored encrypted). Callback URL: `https://your-domain/api/payments/callback/fastlipa` |
+| FastLipa API key, URL, webhook secret | Settings → Payment methods (stored encrypted). Callback URL: `https://your-domain/api/payments/callback/fastlipa/<business id>` (shown on that page) |
+| Plans, trial and grace days, sign-ups, support contacts | Admin → Plans, Admin → Settings |
+| Subscription payments (platform FastLipa account) | Admin → Settings. Callback URL: `https://your-domain/api/billing/callback/fastlipa` |
+| Database per business | `.env`: `TENANT_DB_PREFIX` (MySQL/MariaDB) or `TENANT_SQLITE_PATH` (SQLite) |
 | Beem SMS key, secret, sender ID | Settings → SMS, alerts & fiscal |
 | Backups (disk, retention, alert email) | `.env`: `BACKUP_DISKS`, `BACKUP_KEEP_DAYS`, `BACKUP_NOTIFY_EMAIL` |
 | USD cash payments | Settings → Currency & tax (rate), Settings → Payment methods (turn on "Cash (USD)") |
 | Direct receipt printing / cash drawer | Settings → Receipts → Printing: *Direct to thermal printer*. Then use **Connect printer** on the POS screen once per computer (Chrome or Edge) |
 | Offline till | Works automatically over HTTPS. Open the POS once while online so the device downloads the product list |
-| Scheduled jobs | `routes/console.php`. Run `php artisan schedule:run` every minute from cron |
+| Scheduled jobs | `routes/console.php`. Run `php artisan schedule:run` every minute from cron; per-business jobs run through `tenants:run` |
 
 ## Tests
 
@@ -166,12 +195,15 @@ document number prefixes.
 php artisan test                     # SQLite in memory
 ```
 
-The suite has about 200 Pest tests. They cover:
+The suite has about 250 Pest tests. Each test runs inside a test business with its own database, next to the
+central one. They cover:
 - money math, checkout, stock and purchasing
 - reports and payment callbacks
 - offline sync, ESC/POS output and authorisation
+- tenancy isolation (data, files, queue jobs, sign-in), sign-up, subscription billing and the admin panel
 
-A smoke test renders every page against the full demo data. CI runs the suite on SQLite and MySQL 8.
+A smoke test renders every page against the full demo data, and another renders every admin page. CI runs the
+suite on SQLite and MySQL 8.
 
 ## Deployment
 
