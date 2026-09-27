@@ -32,7 +32,7 @@ class CustomerPaymentService
         if (! Money::isPositive($amount)) {
             throw new BusinessRuleException(__('Enter an amount greater than zero.'));
         }
-        if (in_array($method, [PaymentMethod::Credit, PaymentMethod::StoreCredit], true)) {
+        if ($method->isAccount()) {
             throw new BusinessRuleException(__('Choose a real payment method.'));
         }
         if ($method->isMobileMoney() && ! $reference) {

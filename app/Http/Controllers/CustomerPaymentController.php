@@ -29,7 +29,7 @@ class CustomerPaymentController extends Controller
         return view('customer-payments.create', [
             'customers' => Customer::query()->where('balance', '>', 0)->orderBy('name')->get(),
             'selected' => $request->integer('customer') ?: null,
-            'methods' => collect(PaymentMethod::enabled())->reject(fn ($m) => in_array($m, [PaymentMethod::Credit, PaymentMethod::StoreCredit], true)),
+            'methods' => collect(PaymentMethod::enabled())->reject(fn ($m) => $m->isAccount()),
         ]);
     }
 

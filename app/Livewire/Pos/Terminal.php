@@ -17,11 +17,13 @@ use App\Models\Register;
 use App\Models\Sale;
 use App\Models\Shift;
 use App\Services\CustomerLedgerService;
+use App\Services\GiftCardService;
 use App\Services\LoyaltyService;
 use App\Services\PaymentService;
 use App\Services\Pos\CartCalculator;
 use App\Services\Pos\PriceResolver;
 use App\Services\ProductService;
+use App\Services\PromotionService;
 use App\Services\QuotationService;
 use App\Services\ReceiptService;
 use App\Services\SaleService;
@@ -135,6 +137,8 @@ class Terminal extends Component
             if ($key && $line['price_override']) {
                 $this->cart[$key]['unit_price'] = $line['unit_price'];
                 $this->cart[$key]['price_override'] = true;
+                $this->cart[$key]['promo_discount'] = 0;
+                $this->cart[$key]['promo_name'] = null;
                 $this->cart[$key]['tier'] = 'override';
             }
             if ($key) {
@@ -267,6 +271,8 @@ class Terminal extends Component
             'unit_price' => 0,
             'list_price' => 0,
             'tier' => 'retail',
+            'promo_discount' => 0,
+            'promo_name' => null,
             'price_override' => false,
             'scale_barcode' => $scaleBarcode,
             'discount_type' => null,
@@ -371,13 +377,18 @@ class Terminal extends Component
     {
         $line = $this->cart[$key];
         if ($line['price_override']) {
+            // A manager's price replaces any promotion.
+            $this->cart[$key]['promo_discount'] = 0;
+            $this->cart[$key]['promo_name'] = null;
+
             return;
         }
-        $product = Product::with('units')->find($line['product_id']);
+        $product = Product::with('units', 'category')->find($line['product_id']);
         $unit = $line['product_unit_id'] ? $product->units->firstWhere('id', $line['product_unit_id']) : null;
-        $resolved = app(PriceResolver::class)->resolve($product, $unit, $line['qty'], $this->customer);
+        $branchId = app(BranchContext::class)->currentId();
+        $resolved = app(PriceResolver::class)->resolve($product, $unit, $line['qty'], $this->customer, $branchId);
         $this->cart[$key]['unit_price'] = (float) $resolved['price'];
-        $this->cart[$key]['list_price'] = (float) ($unit ? $unit->retail_price : $product->retail_price);
+        $this->cart[$key]['list_price'] = (float) $resolved['list_price'];
         $this->cart[$key]['tier'] = $resolved['tier'];
         if (! empty($line['scale_barcode'])) {
             // Display only; SaleService recomputes this from the barcode.
@@ -387,6 +398,10 @@ class Terminal extends Component
                 $this->cart[$key]['unit_price'] = (float) Money::div($scale['line_total'], $this->cart[$key]['qty']);
             }
         }
+        // Display only; SaleService works the promotion out again on checkout.
+        $promo = app(PromotionService::class)->lineDiscount($product, (string) $this->cart[$key]['qty'], (string) $this->cart[$key]['unit_price'], $branchId);
+        $this->cart[$key]['promo_discount'] = (float) $promo['discount'];
+        $this->cart[$key]['promo_name'] = $promo['promotion'] ? $promo['promotion']->name.' · '.$promo['promotion']->summary() : null;
     }
 
     protected function repriceAll(): void
@@ -490,6 +505,8 @@ class Terminal extends Component
         if (Money::cmp($this->lineForm['unit_price'], $this->cart[$key]['unit_price']) !== 0) {
             $this->cart[$key]['unit_price'] = (float) $this->lineForm['unit_price'];
             $this->cart[$key]['price_override'] = true;
+            $this->cart[$key]['promo_discount'] = 0;
+            $this->cart[$key]['promo_name'] = null;
             $this->cart[$key]['tier'] = 'override';
         }
         $this->cart[$key]['discount_type'] = $this->lineForm['discount_value'] ? $this->lineForm['discount_type'] : null;
@@ -542,6 +559,8 @@ class Terminal extends Component
             if ($line['price_override']) {
                 $this->cart[$key]['unit_price'] = $line['unit_price'];
                 $this->cart[$key]['price_override'] = true;
+                $this->cart[$key]['promo_discount'] = 0;
+                $this->cart[$key]['promo_name'] = null;
                 $this->cart[$key]['tier'] = 'override';
             }
             $this->cart[$key]['discount_type'] = $line['discount_type'];
@@ -615,6 +634,34 @@ class Terminal extends Component
         [$index, $field] = array_pad(explode('.', (string) $key), 2, null);
         if ($field === 'foreign_amount' && isset($this->payments[$index])) {
             $this->payments[$index]['amount'] = (float) Money::round(Money::mul(Money::round($value ?: 0), Money::round(setting('currency.usd_rate', 0))));
+        }
+    }
+
+    /** Look up a gift card code typed into a payment row and cap the amount at its balance. */
+    public function checkGiftCard(int $index, GiftCardService $cards): void
+    {
+        if (! isset($this->payments[$index]) || $this->payments[$index]['method'] !== PaymentMethod::GiftCard->value) {
+            return;
+        }
+        unset($this->payments[$index]['gift_balance']);
+        $card = $cards->find($this->payments[$index]['reference'] ?? '');
+        $problem = match (true) {
+            ! $card => __('Gift card not found.'),
+            ! $card->is_active => __('This gift card has been deactivated.'),
+            $card->isExpired() => __('This gift card expired on :d.', ['d' => format_date($card->expires_on)]),
+            ! Money::isPositive($card->balance) => __('This gift card has no balance left.'),
+            default => null,
+        };
+        if ($problem) {
+            $this->dispatch('toast', message: $problem, type: 'error');
+
+            return;
+        }
+        $this->payments[$index]['reference'] = $card->displayCode();
+        $this->payments[$index]['gift_balance'] = (float) $card->balance;
+        $this->payments[$index]['amount'] = (float) Money::min(Money::max($this->payments[$index]['amount'] ?: 0, 0), $card->balance);
+        if (! Money::isPositive($this->payments[$index]['amount'])) {
+            $this->payments[$index]['amount'] = (float) Money::min(Money::max(Money::sub($this->totals['total'], $this->paidAmount()), 0), $card->balance);
         }
     }
 
@@ -825,7 +872,7 @@ class Terminal extends Component
     public function totals(): array
     {
         $calculator = CartCalculator::fromSettings();
-        $lines = array_map(fn ($l) => ['qty' => $l['qty'], 'unit_price' => $l['unit_price'], 'discount_type' => $l['discount_type'], 'discount_value' => $l['discount_value'], 'tax_rate' => $l['tax_rate']], $this->cart);
+        $lines = array_map(fn ($l) => ['qty' => $l['qty'], 'unit_price' => $l['unit_price'], 'promo_discount' => $l['promo_discount'] ?? 0, 'discount_type' => $l['discount_type'], 'discount_value' => $l['discount_value'], 'tax_rate' => $l['tax_rate']], $this->cart);
         $totals = $calculator->calculate($lines, $this->cartDiscountType, $this->cartDiscountValue);
         if ($this->loyaltyPoints > 0 && $this->customer) {
             $value = app(LoyaltyService::class)->valueOf(min($this->loyaltyPoints, $this->customer->loyalty_points));

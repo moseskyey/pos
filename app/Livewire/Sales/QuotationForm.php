@@ -60,7 +60,7 @@ class QuotationForm extends Component
     public function addProduct(int $productId, mixed $quantity = null): void
     {
         $product = Product::with('unit')->findOrFail($productId);
-        $price = app(PriceResolver::class)->resolve($product, null, $quantity ?? 1, $this->customerId ? Customer::find($this->customerId) : null);
+        $price = app(PriceResolver::class)->resolve($product, null, $quantity ?? 1, $this->customerId ? Customer::find($this->customerId) : null, branch_context()->currentId());
         $this->lines[] = [
             'product_id' => $product->id, 'product_unit_id' => null, 'name' => $product->name, 'unit' => $product->unit?->short_name,
             'qty' => (float) ($quantity ?? 1), 'unit_price' => (float) $price['price'], 'price_override' => false,

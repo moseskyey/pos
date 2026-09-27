@@ -396,6 +396,14 @@ tests/Feature  tests/Unit
     the `feature:key` middleware, and pass a 6th element to `App\Support\Navigation` items.
   - Business-type presets live in `config('dukapos.business_presets')`.
   - Emailing invoices/quotations (`SaleDocumentMail`), import error report, customer credit terms and due dates.
+- Selling features (Batch 2):
+  - `PromotionService` works out promotion discounts on the server (`sale_items.promo_discount`); the till only
+    displays them. Promotions are not cashier discounts: they skip the discount limit and the below-cost check.
+  - `PriceResolver::resolve(..., $branchId)` applies `branch_prices` when that feature is on.
+  - Bundles (`products.is_bundle` + `bundle_items`) issue their components' stock; the components sold are
+    snapshotted on `sale_items.bundle_components` for returns.
+  - Gift cards are `PaymentMethod::GiftCard`; `GiftCardService` locks, spends and restores balances with a ledger in
+    `gift_card_transactions`. `PaymentMethod::isAccount()` marks methods that are not new money.
 
 ---
 

@@ -42,6 +42,9 @@
                 <td>{{ qty($item->quantity) }} {{ $item->unit_name }} × {{ money($item->unit_price, false) }}</td>
                 <td class="right">{{ money(\App\Support\Money::mul($item->quantity, $item->unit_price), false) }}</td>
             </tr>
+            @if ($item->promo_discount > 0)
+                <tr><td>&nbsp;&nbsp;{{ $item->promotion_name ?: __('Promotion') }}</td><td class="right">-{{ money($item->promo_discount, false) }}</td></tr>
+            @endif
             @if ($item->discount_amount > 0)
                 <tr><td>&nbsp;&nbsp;{{ __('Discount') }}</td><td class="right">-{{ money($item->discount_amount, false) }}</td></tr>
             @endif

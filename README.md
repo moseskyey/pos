@@ -98,7 +98,8 @@ database user must be allowed to create one database per business (see [DEPLOY.m
 - An activity log records every sensitive action.
 - A settings module, dark mode, and an English/Kiswahili switcher.
 - **Feature switches per business** (Settings → Features): quotations, layaway, credit terms, loyalty, variants,
-  batches & expiry, weighed items, transfers, stock takes, expenses, WhatsApp sharing and email documents. Switched-off
+  batches & expiry, weighed items, transfers, stock takes, expenses, WhatsApp sharing, email documents, promotions,
+  branch prices, bundles and gift cards. Switched-off
   modules disappear from menus and screens, and their pages return 404. One-click presets set them up for a
   supermarket, pharmacy, hardware shop, boutique, electronics shop, cosmetics shop or wholesaler.
 
@@ -121,6 +122,14 @@ database user must be allowed to create one database per business (see [DEPLOY.m
 - Keyboard shortcuts (F2–F10, Ctrl+Enter, Esc, +/−, Del, ?) and a scanner-friendly search.
 - Hold and resume sales.
 - Line and cart discounts, split payments, change calculation, and credit sales within limits.
+- **Promotions** applied automatically at the till: % off, amount off, buy X get Y free and "N for a price",
+  limited by dates, weekdays, happy-hour times, branches, categories or products. The best offer wins, it shows on
+  the cart and receipt, and it never counts towards the cashier discount limit.
+- **Gift cards & vouchers**: sell a gift card (cash goes into the drawer) or give a complimentary voucher, then spend
+  it in parts at any branch as a payment method. Voids put the money back on the card; every change is in its history.
+- **Branch prices**: a different retail/wholesale price per branch, set on the product page.
+- **Bundles / kits**: one product (e.g. a hamper) that sells several items; stock and cost come from each item, and
+  voids and returns put the items back.
 - Mobile money STK push, and an idle lock screen that needs a PIN to unlock.
 - Receipts on 58/80 mm thermal paper with a QR verification code, plus A4 tax invoices and delivery notes.
 - Direct printing to USB or serial thermal printers (ESC/POS) from Chrome or Edge, with the cash drawer

@@ -175,7 +175,7 @@ class PurchaseController extends Controller
             'suppliers' => Supplier::where('balance', '>', 0)->orderBy('name')->get(),
             'selected' => $supplierId,
             'bills' => $supplierId ? SupplierBill::where('supplier_id', $supplierId)->where('status', '!=', 'paid')->orderBy('bill_date')->get() : collect(),
-            'methods' => collect(PaymentMethod::cases())->reject(fn ($m) => in_array($m, [PaymentMethod::Credit, PaymentMethod::StoreCredit], true)),
+            'methods' => collect(PaymentMethod::cases())->reject(fn ($m) => $m->isAccount()),
         ]);
     }
 

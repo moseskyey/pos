@@ -21,6 +21,7 @@ class Navigation
                 ['Sales', 'bi-receipt', 'sales.index', ['sales.view', 'sales.view_all'], 'sales.*'],
                 ['Returns', 'bi-arrow-counterclockwise', 'returns.index', 'sales.return', 'returns.*'],
                 ['Quotations', 'bi-file-earmark-text', 'quotations.index', 'quotations.manage', 'quotations.*', 'quotations'],
+                ['Promotions', 'bi-megaphone', 'promotions.index', 'promotions.manage', 'promotions.*', 'promotions'],
                 ['Shifts', 'bi-cash-coin', 'shifts.index', ['shifts.open', 'shifts.manage'], 'shifts.*'],
             ]],
             ['Products', [
@@ -49,6 +50,7 @@ class Navigation
             ['Customers', [
                 ['Customers', 'bi-people', 'customers.index', 'customers.view', 'customers.*'],
                 ['Payments', 'bi-wallet2', 'customer-payments.index', 'customers.payments', 'customer-payments.*'],
+                ['Gift Cards', 'bi-gift', 'gift-cards.index', 'gift_cards.manage', 'gift-cards.*', 'gift_cards'],
             ]],
             ['Expenses', [
                 ['Expenses', 'bi-credit-card-2-back', 'expenses.index', 'expenses.view', 'expenses.*', 'expenses'],

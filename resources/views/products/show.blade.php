@@ -61,6 +61,8 @@
         @endif
         @if ($salesChart)<li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-sales" type="button">{{ __('Sales') }}</button></li>@endif
         @if ($product->track_batches)<li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-batches" type="button">{{ __('Batches') }} <span class="badge text-bg-secondary-soft">{{ $batches->count() }}</span></button></li>@endif
+        @if ($product->is_bundle)<li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-bundle" type="button">{{ __('Bundle items') }} <span class="badge text-bg-secondary-soft">{{ $bundle->count() }}</span></button></li>@endif
+        @if ($branchPrices->isNotEmpty())<li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-branch-prices" type="button">{{ __('Branch prices') }}</button></li>@endif
         <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-prices" type="button">{{ __('Price history') }}</button></li>
     </ul>
 
@@ -221,5 +223,65 @@
                 @endif
             </div>
         </div>
+
+        @if ($product->is_bundle)
+            <div class="tab-pane fade" id="tab-bundle">
+                <div class="card">
+                    @if ($bundle->isEmpty())
+                        <x-empty-state icon="bi-box2-heart" :title="__('No items in this bundle')" :message="__('Edit the product to add the items it contains.')" :action="route('products.edit', $product)" :action-label="__('Edit product')" action-icon="bi-pencil" />
+                    @else
+                        <div class="table-responsive">
+                            <table class="table table-stack mb-0">
+                                <thead><tr><th>{{ __('Item') }}</th><th class="text-end">{{ __('Per bundle') }}</th>@if ($canCost)<th class="text-end">{{ __('Cost') }}</th>@endif<th class="text-end">{{ __('In stock here') }}</th><th class="text-end">{{ __('Bundles possible') }}</th></tr></thead>
+                                <tbody>
+                                @foreach ($bundle as $row)
+                                    @php $c = $row['item']->component; @endphp
+                                    <tr>
+                                        <td data-label="{{ __('Item') }}"><a href="{{ route('products.show', $c) }}">{{ $c->name }}</a></td>
+                                        <td data-label="{{ __('Per bundle') }}" class="text-end">{{ qty($row['item']->quantity) }} {{ $c->unit?->short_name }}</td>
+                                        @if ($canCost)<td data-label="{{ __('Cost') }}" class="text-end text-money">{{ money(\App\Support\Money::mul($row['item']->quantity, $c->cost_price)) }}</td>@endif
+                                        <td data-label="{{ __('In stock here') }}" class="text-end">{{ $c->track_stock && $row['available'] !== null ? qty($row['available']) : '—' }}</td>
+                                        <td data-label="{{ __('Bundles possible') }}" class="text-end fw-semibold">{{ $c->track_stock && $row['available'] !== null ? number_format(max(0, floor((float) $row['available'] / (float) $row['item']->quantity))) : '∞' }}</td>
+                                    </tr>
+                                @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                    @endif
+                </div>
+            </div>
+        @endif
+
+        @if ($branchPrices->isNotEmpty())
+            <div class="tab-pane fade" id="tab-branch-prices">
+                <form method="POST" action="{{ route('products.branch-prices', $product) }}" class="card" x-data="dirtyForm">
+                    @csrf @method('PUT')
+                    <div class="card-body">
+                        <p class="small text-body-secondary">{{ __('Leave a branch empty to use the normal price (:r retail).', ['r' => money($product->retail_price)]) }}</p>
+                        <div class="table-responsive">
+                            <table class="table table-stack align-middle mb-3">
+                                <thead><tr><th>{{ __('Branch') }}</th><th>{{ __('Retail price') }}</th><th>{{ __('Wholesale price') }}</th></tr></thead>
+                                <tbody>
+                                @foreach ($branchPrices as $row)
+                                    @php $id = $row['branch']->id; @endphp
+                                    <tr>
+                                        <td data-label="{{ __('Branch') }}" class="fw-semibold">{{ $row['branch']->name }}</td>
+                                        <td data-label="{{ __('Retail price') }}"><x-input :name="'prices['.$id.'][retail_price]'" type="number" min="0" step="1" :value="$row['price']?->retail_price !== null ? (float) $row['price']->retail_price : null" :placeholder="(string) (float) $product->retail_price" prefix="TSh" class="mb-0" :aria-label="__('Retail price at :b', ['b' => $row['branch']->name])" :disabled="! auth()->user()->can('products.edit_price')" /></td>
+                                        <td data-label="{{ __('Wholesale price') }}"><x-input :name="'prices['.$id.'][wholesale_price]'" type="number" min="0" step="1" :value="$row['price']?->wholesale_price !== null ? (float) $row['price']->wholesale_price : null" :placeholder="$product->wholesale_price ? (string) (float) $product->wholesale_price : '—'" prefix="TSh" class="mb-0" :aria-label="__('Wholesale price at :b', ['b' => $row['branch']->name])" :disabled="! auth()->user()->can('products.edit_price')" /></td>
+                                    </tr>
+                                @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                        @can('products.edit_price')
+                            <div class="d-flex flex-wrap gap-2 align-items-end">
+                                <x-input name="reason" :label="__('Reason (optional)')" class="mb-0 flex-grow-1" />
+                                <button class="btn btn-primary"><i class="bi bi-check2"></i> {{ __('Save branch prices') }}</button>
+                            </div>
+                        @endcan
+                    </div>
+                </form>
+            </div>
+        @endif
     </div>
 </x-layouts.app>

@@ -4,10 +4,12 @@ use App\Http\Controllers\BulkPriceController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\CustomerPaymentController;
 use App\Http\Controllers\ExpenseController;
+use App\Http\Controllers\GiftCardController;
 use App\Http\Controllers\LabelController;
 use App\Http\Controllers\OfflinePosController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProductImportController;
+use App\Http\Controllers\PromotionController;
 use App\Http\Controllers\PurchaseController;
 use App\Http\Controllers\QuotationController;
 use App\Http\Controllers\ReceiptController;
@@ -41,6 +43,7 @@ Route::get('/products/import/template', [ProductImportController::class, 'templa
 Route::get('/products/export', [ProductImportController::class, 'export'])->name('products.export');
 Route::get('/products/bulk-price', [BulkPriceController::class, 'create'])->name('products.bulk-price');
 Route::post('/products/bulk-price', [BulkPriceController::class, 'store'])->name('products.bulk-price.store');
+Route::put('/products/{product}/branch-prices', [ProductController::class, 'branchPrices'])->middleware('feature:branch_prices')->name('products.branch-prices');
 Route::resource('products', ProductController::class);
 
 Route::get('/labels', [LabelController::class, 'index'])->name('labels.index');
@@ -105,6 +108,18 @@ Route::get('/sales/{sale}', [SaleController::class, 'show'])->name('sales.show')
 Route::get('/returns', [SaleReturnController::class, 'index'])->name('returns.index');
 Route::get('/returns/create', [SaleReturnController::class, 'create'])->name('returns.create');
 Route::get('/returns/{return}', [SaleReturnController::class, 'show'])->name('returns.show');
+Route::middleware('feature:promotions')->group(function () {
+    Route::resource('promotions', PromotionController::class)->except('show');
+    Route::post('/promotions/{promotion}/toggle', [PromotionController::class, 'toggle'])->name('promotions.toggle');
+});
+Route::middleware('feature:gift_cards')->group(function () {
+    Route::get('/gift-cards', [GiftCardController::class, 'index'])->name('gift-cards.index');
+    Route::get('/gift-cards/create', [GiftCardController::class, 'create'])->name('gift-cards.create');
+    Route::post('/gift-cards', [GiftCardController::class, 'store'])->name('gift-cards.store');
+    Route::get('/gift-cards/{giftCard}', [GiftCardController::class, 'show'])->name('gift-cards.show');
+    Route::get('/gift-cards/{giftCard}/print', [GiftCardController::class, 'print'])->name('gift-cards.print');
+    Route::post('/gift-cards/{giftCard}/toggle', [GiftCardController::class, 'toggle'])->name('gift-cards.toggle');
+});
 Route::middleware('feature:quotations')->group(function () {
     Route::get('/quotations', [QuotationController::class, 'index'])->name('quotations.index');
     Route::get('/quotations/create', [QuotationController::class, 'create'])->name('quotations.create');

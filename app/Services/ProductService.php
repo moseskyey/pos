@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\BranchPrice;
 use App\Models\PriceHistory;
 use App\Models\Product;
 use App\Models\ProductBarcode;
@@ -14,6 +15,7 @@ use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 class ProductService
 {
@@ -27,7 +29,7 @@ class ProductService
     public function create(array $data, User $user, ?UploadedFile $image = null): Product
     {
         return DB::transaction(function () use ($data, $user, $image) {
-            $data = $this->filterPrices($data, $user);
+            $data = $this->normalizeBundle($this->filterPrices($data, $user));
             $product = new Product(Arr::only($data, (new Product)->getFillable()));
             $product->sku = $data['sku'] ?? null ?: 'TMP-'.Str::uuid();
             $product->save();
@@ -45,6 +47,9 @@ class ProductService
             if (! empty($data['has_variants'])) {
                 $this->syncVariants($product, $data['variants'] ?? [], $user);
             }
+            if (! empty($data['is_bundle'])) {
+                $this->syncBundle($product, $data['bundle_items'] ?? [], $user);
+            }
 
             return $product->fresh(['barcodes', 'units', 'variants']);
         });
@@ -53,7 +58,7 @@ class ProductService
     public function update(Product $product, array $data, User $user, ?UploadedFile $image = null, ?string $reason = null): Product
     {
         return DB::transaction(function () use ($product, $data, $user, $image, $reason) {
-            $data = $this->filterPrices($data, $user, $product);
+            $data = $this->normalizeBundle($this->filterPrices($data, $user, $product));
             $before = $product->only(self::PRICE_FIELDS);
 
             $attributes = Arr::only($data, (new Product)->getFillable());
@@ -83,8 +88,82 @@ class ProductService
                 }
                 $product->variants()->update(Arr::only($product->only(self::COPY_TO_VARIANTS), self::COPY_TO_VARIANTS));
             }
+            if ($product->is_bundle && array_key_exists('bundle_items', $data)) {
+                $this->syncBundle($product, $data['bundle_items'] ?? [], $user);
+            } elseif (! $product->is_bundle) {
+                $product->bundleItems()->delete();
+            }
 
             return $product->fresh(['barcodes', 'units', 'variants']);
+        });
+    }
+
+    /** A bundle's stock lives in its components: it never tracks its own stock, batches or variants. */
+    protected function normalizeBundle(array $data): array
+    {
+        if (! empty($data['is_bundle'])) {
+            $data['track_stock'] = false;
+            $data['track_batches'] = false;
+            $data['has_variants'] = false;
+            $data['is_weighted'] = false;
+        }
+
+        return $data;
+    }
+
+    /**
+     * Replace a bundle's components and set its cost to theirs.
+     *
+     * @param  array<int, array{component_id: mixed, quantity: mixed}>  $rows
+     */
+    protected function syncBundle(Product $bundle, array $rows, User $user): void
+    {
+        $rows = collect($rows)->filter(fn ($r) => ! empty($r['component_id']) && Qty::isPositive($r['quantity'] ?? 0))
+            ->keyBy(fn ($r) => (int) $r['component_id']);
+        if ($rows->isEmpty()) {
+            throw ValidationException::withMessages(['bundle_items' => __('Add at least one item to the bundle.')]);
+        }
+        $components = Product::query()->whereIn('id', $rows->keys())->get()->keyBy('id');
+        foreach ($rows->keys() as $id) {
+            $component = $components->get($id);
+            if (! $component || $component->id === $bundle->id || $component->is_bundle || $component->has_variants) {
+                throw ValidationException::withMessages(['bundle_items' => __('Bundle items must be ordinary products (not bundles, the bundle itself, or products with variants).')]);
+            }
+        }
+
+        $bundle->bundleItems()->delete();
+        foreach ($rows as $id => $row) {
+            $bundle->bundleItems()->create(['component_id' => $id, 'quantity' => Qty::round($row['quantity'])]);
+        }
+        $cost = Money::sum($rows->map(fn ($r, $id) => Money::mul($r['quantity'], $components[$id]->cost_price)));
+        $this->changePrices($bundle, ['cost_price' => $cost], $user, __('Bundle cost from its items'));
+    }
+
+    /**
+     * Save per-branch selling prices; an empty retail price removes the override.
+     *
+     * @param  array<int|string, array{retail_price: ?string, wholesale_price: ?string}>  $prices  branch id => prices
+     */
+    public function saveBranchPrices(Product $product, array $prices, User $user, ?string $reason = null): void
+    {
+        DB::transaction(function () use ($product, $prices, $user, $reason) {
+            foreach ($prices as $branchId => $row) {
+                $existing = BranchPrice::query()->where('branch_id', $branchId)->where('product_id', $product->id)->whereNull('product_unit_id')->first();
+                if ($row['retail_price'] === null) {
+                    $existing?->delete();
+                } else {
+                    BranchPrice::query()->updateOrCreate(
+                        ['branch_id' => $branchId, 'product_id' => $product->id, 'product_unit_id' => null],
+                        ['retail_price' => Money::round($row['retail_price']), 'wholesale_price' => $row['wholesale_price'] === null ? null : Money::round($row['wholesale_price'])],
+                    );
+                }
+                $changed = $existing?->retail_price != $row['retail_price'] || $existing?->wholesale_price != $row['wholesale_price'];
+                if ($changed) {
+                    activity('products')->causedBy($user)->performedOn($product)
+                        ->withProperties(['branch_id' => (int) $branchId, 'old' => $existing?->only(['retail_price', 'wholesale_price']), 'new' => $row, 'reason' => $reason])
+                        ->log('Branch price changed');
+                }
+            }
         });
     }
 
@@ -145,6 +224,12 @@ class ProductService
         }
         if (! $user->can('products.view_cost')) {
             unset($data['cost_price']);
+        }
+        // Blank price fields arrive as null; the columns are required, so blank means zero.
+        foreach (['cost_price', 'retail_price'] as $field) {
+            if (array_key_exists($field, $data) && $data[$field] === null) {
+                $data[$field] = 0;
+            }
         }
 
         return $data;

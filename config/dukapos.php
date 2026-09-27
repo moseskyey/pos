@@ -74,6 +74,8 @@ return [
             'sales.reprint' => 'Reprint receipts',
             'quotations.manage' => 'Manage quotations',
             'layaway.manage' => 'Manage layaway / deposits',
+            'promotions.manage' => 'Create / edit promotions',
+            'gift_cards.manage' => 'Issue & manage gift cards / vouchers',
         ],
         'Shifts' => [
             'shifts.open' => 'Open / close own shift',
@@ -121,7 +123,7 @@ return [
                 'users.view', 'activity.view',
                 'products.*', 'catalog.manage',
                 'stock.*',
-                'pos.access', 'sales.*', 'quotations.manage', 'layaway.manage',
+                'pos.access', 'sales.*', 'quotations.manage', 'layaway.manage', 'promotions.manage', 'gift_cards.manage',
                 'shifts.*', 'cash.movements',
                 'customers.*',
                 'suppliers.*', 'purchases.*', 'supplier.payments',
@@ -179,6 +181,10 @@ return [
         'features.whatsapp' => true,
         'features.email_documents' => true,
         'features.credit_terms' => true,
+        'features.promotions' => true,
+        'features.branch_prices' => false,
+        'features.bundles' => false,
+        'features.gift_cards' => false,
         'features.business_type' => null,
 
         // Credit terms
@@ -308,6 +314,10 @@ return [
         'stock_takes' => ['label' => 'Stock takes', 'icon' => 'bi-clipboard-check', 'description' => 'Full or cycle counts with variance reports.'],
         'expenses' => ['label' => 'Expenses', 'icon' => 'bi-credit-card-2-back', 'description' => 'Record shop expenses, recurring bills and paid-outs from the drawer.'],
         'whatsapp' => ['label' => 'WhatsApp sharing', 'icon' => 'bi-whatsapp', 'description' => 'Share invoices, quotations and statements through WhatsApp links.'],
+        'promotions' => ['label' => 'Promotions', 'icon' => 'bi-megaphone', 'description' => 'Automatic discounts: % or amount off, buy X get Y free, N for a price, happy hours and date ranges.'],
+        'branch_prices' => ['label' => 'Branch prices', 'icon' => 'bi-shop-window', 'description' => 'A different selling price per branch, e.g. higher prices at a city-centre shop.'],
+        'bundles' => ['label' => 'Bundles & kits', 'icon' => 'bi-box2-heart', 'description' => 'Sell several items as one product; stock is taken from each item (hampers, packs, kits).'],
+        'gift_cards' => ['label' => 'Gift cards & vouchers', 'icon' => 'bi-gift', 'description' => 'Sell gift cards or give vouchers with a balance customers spend at the till.'],
         'email_documents' => ['label' => 'Email documents', 'icon' => 'bi-envelope', 'description' => 'Email receipts, invoices and quotations to customers as PDF.'],
     ],
 
@@ -317,25 +327,25 @@ return [
     'business_presets' => [
         'supermarket' => ['label' => 'Supermarket / mini-mart', 'icon' => 'bi-basket', 'features' => [
             'quotations' => false, 'layaway' => false, 'credit_terms' => false, 'loyalty' => true, 'variants' => false,
-            'batches' => true, 'scale_items' => true, 'stock_takes' => true, 'expenses' => true]],
+            'batches' => true, 'scale_items' => true, 'stock_takes' => true, 'expenses' => true, 'promotions' => true, 'bundles' => true, 'gift_cards' => true]],
         'pharmacy' => ['label' => 'Pharmacy', 'icon' => 'bi-capsule', 'features' => [
             'quotations' => false, 'layaway' => false, 'credit_terms' => true, 'loyalty' => true, 'variants' => false,
-            'batches' => true, 'scale_items' => false, 'stock_takes' => true, 'expenses' => true]],
+            'batches' => true, 'scale_items' => false, 'stock_takes' => true, 'expenses' => true, 'promotions' => true, 'bundles' => false, 'gift_cards' => false]],
         'hardware' => ['label' => 'Hardware', 'icon' => 'bi-hammer', 'features' => [
             'quotations' => true, 'layaway' => true, 'credit_terms' => true, 'loyalty' => false, 'variants' => false,
-            'batches' => false, 'scale_items' => true, 'stock_takes' => true, 'expenses' => true]],
+            'batches' => false, 'scale_items' => true, 'stock_takes' => true, 'expenses' => true, 'promotions' => false, 'bundles' => true, 'gift_cards' => false]],
         'boutique' => ['label' => 'Boutique / fashion', 'icon' => 'bi-bag-heart', 'features' => [
             'quotations' => false, 'layaway' => true, 'credit_terms' => false, 'loyalty' => true, 'variants' => true,
-            'batches' => false, 'scale_items' => false, 'stock_takes' => true, 'expenses' => true]],
+            'batches' => false, 'scale_items' => false, 'stock_takes' => true, 'expenses' => true, 'promotions' => true, 'bundles' => false, 'gift_cards' => true]],
         'electronics' => ['label' => 'Electronics & phones', 'icon' => 'bi-phone', 'features' => [
             'quotations' => true, 'layaway' => true, 'credit_terms' => true, 'loyalty' => false, 'variants' => true,
-            'batches' => false, 'scale_items' => false, 'stock_takes' => true, 'expenses' => true]],
+            'batches' => false, 'scale_items' => false, 'stock_takes' => true, 'expenses' => true, 'promotions' => true, 'bundles' => true, 'gift_cards' => true]],
         'cosmetics' => ['label' => 'Cosmetics & beauty', 'icon' => 'bi-droplet-half', 'features' => [
             'quotations' => false, 'layaway' => true, 'credit_terms' => false, 'loyalty' => true, 'variants' => true,
-            'batches' => true, 'scale_items' => false, 'stock_takes' => true, 'expenses' => true]],
+            'batches' => true, 'scale_items' => false, 'stock_takes' => true, 'expenses' => true, 'promotions' => true, 'bundles' => true, 'gift_cards' => true]],
         'wholesale' => ['label' => 'Wholesale', 'icon' => 'bi-boxes', 'features' => [
             'quotations' => true, 'layaway' => false, 'credit_terms' => true, 'loyalty' => false, 'variants' => false,
-            'batches' => true, 'scale_items' => false, 'stock_takes' => true, 'expenses' => true]],
+            'batches' => true, 'scale_items' => false, 'stock_takes' => true, 'expenses' => true, 'promotions' => false, 'bundles' => false, 'gift_cards' => false, 'branch_prices' => true]],
     ],
 
     'denominations' => [10000, 5000, 2000, 1000, 500, 200, 100, 50],

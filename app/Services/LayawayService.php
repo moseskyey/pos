@@ -37,7 +37,7 @@ class LayawayService
             if ($method->isMobileMoney() && ! $reference) {
                 throw new BusinessRuleException(__('Enter the mobile money transaction reference.'));
             }
-            if (in_array($method, [PaymentMethod::Credit, PaymentMethod::StoreCredit], true)) {
+            if ($method->isAccount()) {
                 throw new BusinessRuleException(__('Choose a real payment method.'));
             }
             $shift = $this->shifts->current($user, $sale->branch_id);

@@ -12,12 +12,15 @@ class SaleItem extends Model
     protected $fillable = [
         'sale_id', 'product_id', 'product_unit_id', 'name', 'sku', 'unit_name', 'conversion_factor', 'quantity', 'base_quantity',
         'unit_price', 'list_price', 'price_tier', 'cost_price', 'discount_type', 'discount_value', 'discount_amount', 'cart_discount_share',
+        'promotion_id', 'promotion_name', 'promo_discount', 'bundle_components',
         'tax_type', 'tax_rate', 'tax_amount', 'line_total', 'returned_quantity',
     ];
 
     protected function casts(): array
     {
         return [
+            'promo_discount' => 'decimal:2',
+            'bundle_components' => 'array',
             'conversion_factor' => 'decimal:4',
             'quantity' => 'decimal:3',
             'base_quantity' => 'decimal:3',

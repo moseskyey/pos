@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Enums\TaxType;
+use App\Http\Requests\BranchPricesRequest;
 use App\Http\Requests\ProductRequest;
 use App\Models\Brand;
 use App\Models\Category;
@@ -13,6 +14,7 @@ use App\Models\SaleItem;
 use App\Models\Unit;
 use App\Models\UnitConversion;
 use App\Services\ProductService;
+use App\Services\StockService;
 use App\Support\BranchContext;
 use App\Support\Sql;
 use Illuminate\Http\RedirectResponse;
@@ -63,7 +65,7 @@ class ProductController extends Controller
     public function show(Product $product, BranchContext $context): View
     {
         $this->authorize('view', $product);
-        $product->load(['category', 'brand', 'unit', 'barcodes.productUnit.unit', 'units.unit', 'parent',
+        $product->load(['category', 'brand', 'unit', 'barcodes.productUnit.unit', 'units.unit', 'parent', 'branchPrices', 'bundleItems.component.unit',
             'variants' => fn ($q) => $q->withSum(['stocks as stock_qty' => fn ($s) => $s->whereIn('branch_id', $context->activeIds())], 'quantity')]);
 
         $stocks = class_exists(ProductStock::class)
@@ -98,13 +100,25 @@ class ProductController extends Controller
 
         $priceHistory = $product->priceHistories()->with('user')->limit(20)->get();
 
-        return view('products.show', compact('product', 'stocks', 'batches', 'salesChart', 'priceHistory'));
+        $branchPrices = feature('branch_prices') && ! $product->has_variants
+            ? $context->accessibleBranches()->map(fn ($branch) => [
+                'branch' => $branch,
+                'price' => $product->branchPrices->first(fn ($p) => $p->branch_id === $branch->id && $p->product_unit_id === null),
+            ])
+            : collect();
+
+        $bundle = $product->is_bundle ? $product->bundleItems->map(fn ($item) => [
+            'item' => $item,
+            'available' => $context->currentId() ? app(StockService::class)->available($context->currentId(), $item->component_id) : null,
+        ]) : collect();
+
+        return view('products.show', compact('product', 'stocks', 'batches', 'salesChart', 'priceHistory', 'branchPrices', 'bundle'));
     }
 
     public function edit(Product $product): View
     {
         $this->authorize('update', $product);
-        $product->load(['barcodes', 'units.barcodes', 'variants.barcodes']);
+        $product->load(['barcodes', 'units.barcodes', 'variants.barcodes', 'bundleItems']);
 
         return view('products.form', $this->formData($product));
     }
@@ -138,6 +152,21 @@ class ProductController extends Controller
             'units' => $units->mapWithKeys(fn ($u) => [$u->id => $u->label()]),
             'conversions' => UnitConversion::query()->get(['from_unit_id', 'to_unit_id', 'factor']),
             'taxTypes' => TaxType::options(),
+            'bundleOptions' => feature('bundles') || $product->is_bundle
+                ? Product::query()->where('is_bundle', false)->where('has_variants', false)->where('is_active', true)
+                    ->when($product->exists, fn ($q) => $q->whereKeyNot($product->id))
+                    ->orderBy('name')->limit(1000)->get(['id', 'name', 'sku', 'cost_price'])
+                    ->mapWithKeys(fn ($p) => [$p->id => $p->name.($p->sku ? ' · '.$p->sku : '')])
+                : collect(),
         ];
+    }
+
+    /** Per-branch selling prices (Settings → Features → Branch prices). */
+    public function branchPrices(BranchPricesRequest $request, Product $product): RedirectResponse
+    {
+        $data = $request->validated();
+        $this->products->saveBranchPrices($product, $data['prices'] ?? [], $request->user(), $data['reason'] ?? null);
+
+        return redirect()->route('products.show', $product)->with('success', __('Branch prices saved.'));
     }
 }

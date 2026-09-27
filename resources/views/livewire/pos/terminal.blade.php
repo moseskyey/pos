@@ -150,6 +150,9 @@
                                             @if ($line['price_override'])<span class="badge text-bg-warning-soft">{{ __('Price changed') }}</span>@endif
                                             @if ($calc && $calc['discount_amount'] > 0)<span class="badge text-bg-success-soft">−{{ money($calc['discount_amount'], false) }}</span>@endif
                                         </div>
+                                        @if ($calc && $calc['promo_discount'] > 0 && ! empty($line['promo_name']))
+                                            <div class="small text-success text-truncate"><i class="bi bi-megaphone" aria-hidden="true"></i> {{ $line['promo_name'] }} <span class="text-money">−{{ money($calc['promo_discount'], false) }}</span></div>
+                                        @endif
                                     </div>
                                     <div class="fw-bold text-money text-end">{{ money($calc['line_total'] ?? 0) }}</div>
                                 </div>
@@ -184,8 +187,11 @@
 
                     <div class="cart-totals">
                         <div class="row-total"><span>{{ __('Subtotal') }} <span class="text-body-secondary">({{ qty($totals['items']) }} {{ __('items') }})</span></span><span class="text-money">{{ money($totals['subtotal']) }}</span></div>
-                        @if ($totals['discount_total'] > 0)
-                            <div class="row-total text-success"><span>{{ __('Discount') }}</span><span class="text-money">−{{ money($totals['discount_total']) }}</span></div>
+                        @if ($totals['promo_discounts'] > 0)
+                            <div class="row-total text-success"><span><i class="bi bi-megaphone" aria-hidden="true"></i> {{ __('Promotions') }}</span><span class="text-money">−{{ money($totals['promo_discounts']) }}</span></div>
+                        @endif
+                        @if ($totals['discount_total'] - $totals['promo_discounts'] > 0)
+                            <div class="row-total text-success"><span>{{ __('Discount') }}</span><span class="text-money">−{{ money(\App\Support\Money::sub($totals['discount_total'], $totals['promo_discounts'])) }}</span></div>
                         @endif
                         <div class="row-total text-body-secondary"><span>{{ setting('tax.prices_include_vat') ? __('VAT (included)') : __('VAT') }}</span><span class="text-money">{{ money($totals['tax_total']) }}</span></div>
                         @if ($totals['rounding'] != 0)
@@ -338,7 +344,16 @@
                                                 @endif
                                             </div>
                                             <div class="col-md-4">
-                                                @if ($method->needsReference())
+                                                @if ($method === \App\Enums\PaymentMethod::GiftCard)
+                                                    <div class="input-group">
+                                                        <input type="text" class="form-control font-monospace text-uppercase" wire:model="payments.{{ $i }}.reference" wire:keydown.enter.prevent="checkGiftCard({{ $i }})"
+                                                               placeholder="XXXX-XXXX-XXXX" aria-label="{{ __('Gift card code') }}" autocomplete="off">
+                                                        <button type="button" class="btn btn-outline-primary" wire:click="checkGiftCard({{ $i }})" wire:loading.attr="disabled">{{ __('Check') }}</button>
+                                                    </div>
+                                                    @if (isset($p['gift_balance']))
+                                                        <div class="small text-success mt-1"><i class="bi bi-check-circle"></i> {{ __('Balance: :b', ['b' => money($p['gift_balance'])]) }}</div>
+                                                    @endif
+                                                @elseif ($method->needsReference())
                                                     <input type="text" class="form-control" wire:model="payments.{{ $i }}.reference" placeholder="{{ $method->isMobileMoney() ? __('Transaction ID, e.g. SGH7K2L9QX') : __('Reference') }}" aria-label="{{ __('Reference') }}">
                                                     @if ($method->isMobileMoney() && $supportsPush)
                                                         @php $st = $p['intent_status'] ?? null; @endphp

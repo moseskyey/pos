@@ -19,7 +19,7 @@ class ExpenseRequest extends FormRequest
             'expense_category_id' => ['required', 'exists:expense_categories,id'],
             'expense_date' => ['required', 'date', 'before_or_equal:today'],
             'amount' => ['required', 'numeric', 'gt:0', 'max:9999999999'],
-            'payment_method' => ['required', Rule::enum(PaymentMethod::class), Rule::notIn(['credit', 'store_credit'])],
+            'payment_method' => ['required', Rule::enum(PaymentMethod::class), Rule::notIn(['credit', 'store_credit', 'gift_card'])],
             'paid_from_drawer' => ['boolean'],
             'reference' => ['nullable', 'string', 'max:100'],
             'payee' => ['nullable', 'string', 'max:120'],

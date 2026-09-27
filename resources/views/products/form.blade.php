@@ -171,6 +171,48 @@
                     </div>
                 </x-card>
                 @endif
+
+                @if (feature('bundles') || $product->is_bundle)
+                    @php
+                        $bundleRows = old('bundle_items', $product->relationLoaded('bundleItems')
+                            ? $product->bundleItems->map(fn ($b) => ['component_id' => $b->component_id, 'quantity' => (float) $b->quantity])->values()->all() : []);
+                    @endphp
+                    <x-card :title="__('Bundle / kit')" icon="bi-box2-heart" class="mt-4" :subtitle="__('Sell several items as one product. Stock is taken from each item.')"
+                            x-data="{ isBundle: @js((bool) old('is_bundle', $product->is_bundle)), items: @js(array_values($bundleRows)) }">
+                        <input type="hidden" name="is_bundle" value="0">
+                        <div class="form-check form-switch mb-3">
+                            <input class="form-check-input" type="checkbox" role="switch" id="is_bundle" name="is_bundle" value="1" x-model="isBundle"
+                                   @change="if (isBundle && ! items.length) items.push({ component_id: '', quantity: 1 })">
+                            <label class="form-check-label" for="is_bundle">{{ __('This product is a bundle of other items') }}</label>
+                        </div>
+                        <div x-show="isBundle" x-cloak>
+                            <div class="table-responsive">
+                                <table class="table table-sm align-middle">
+                                    <thead><tr><th>{{ __('Item') }}</th><th style="width:130px">{{ __('Qty per bundle') }}</th><th style="width:48px"></th></tr></thead>
+                                    <tbody>
+                                    <template x-for="(row, i) in items" :key="i">
+                                        <tr>
+                                            <td>
+                                                <select class="form-select form-select-sm" :name="`bundle_items[${i}][component_id]`" x-model="row.component_id" :disabled="! isBundle" aria-label="{{ __('Item') }}" required>
+                                                    <option value="">{{ __('Choose an item…') }}</option>
+                                                    @foreach ($bundleOptions as $id => $label)<option value="{{ $id }}">{{ $label }}</option>@endforeach
+                                                </select>
+                                            </td>
+                                            <td><input type="number" step="0.001" min="0.001" class="form-control form-control-sm" :name="`bundle_items[${i}][quantity]`" x-model="row.quantity" :disabled="! isBundle" aria-label="{{ __('Qty per bundle') }}" required></td>
+                                            <td><button type="button" class="btn btn-sm btn-light text-danger" @click="items.splice(i, 1)" aria-label="{{ __('Remove') }}"><i class="bi bi-trash"></i></button></td>
+                                        </tr>
+                                    </template>
+                                    </tbody>
+                                </table>
+                            </div>
+                            @foreach ($errors->getMessages() as $key => $messages)
+                                @if (str_starts_with($key, 'bundle_items'))<div class="text-danger small">{{ $messages[0] }}</div>@endif
+                            @endforeach
+                            <button type="button" class="btn btn-sm btn-soft-primary" @click="items.push({ component_id: '', quantity: 1 })"><i class="bi bi-plus-lg"></i> {{ __('Add item') }}</button>
+                            <p class="small text-body-secondary mt-2 mb-0"><i class="bi bi-info-circle"></i> {{ __('The bundle\'s cost is the total cost of its items. It does not keep stock of its own.') }}</p>
+                        </div>
+                    </x-card>
+                @endif
             </div>
 
             <div class="col-lg-4">

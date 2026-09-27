@@ -10,6 +10,7 @@ use App\Exceptions\ApprovalRequiredException;
 use App\Exceptions\BusinessRuleException;
 use App\Exceptions\InsufficientStockException;
 use App\Models\Customer;
+use App\Models\GiftCard;
 use App\Models\Product;
 use App\Models\ProductUnit;
 use App\Models\Sale;
@@ -26,6 +27,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use Throwable;
 
 /**
@@ -49,13 +51,13 @@ class SaleService
      * @param  array<int, array{product_id:int, product_unit_id?:?int, qty:mixed, unit_price?:mixed, price_override?:bool, discount_type?:?string, discount_value?:mixed}>  $lines
      * @return array{lines: array<int, array>, products: Collection}
      */
-    public function priceLines(array $lines, ?Customer $customer, User $user, array $approvals = []): array
+    public function priceLines(array $lines, ?Customer $customer, User $user, array $approvals = [], ?int $branchId = null): array
     {
         if (! $lines) {
             throw new BusinessRuleException(__('The cart is empty.'));
         }
 
-        $products = Product::query()->with('units.unit', 'unit')->whereIn('id', array_column($lines, 'product_id'))->get()->keyBy('id');
+        $products = Product::query()->with('units.unit', 'unit', 'category', 'bundleItems.component')->whereIn('id', array_column($lines, 'product_id'))->get()->keyBy('id');
         $priced = [];
         foreach (array_values($lines) as $i => $line) {
             $product = $products->get($line['product_id']);
@@ -64,6 +66,9 @@ class SaleService
             }
             if (! $product->is_active) {
                 $this->flagOffline('inactive_product'); // sold offline before it was deactivated
+            }
+            if ($product->is_bundle && $product->bundleItems->isEmpty()) {
+                throw new BusinessRuleException(__(':p is a bundle with no items. Add its items on the product page.', ['p' => $product->name]));
             }
             $qty = Qty::round($line['qty'] ?? 0);
             // Scale labels: the quantity (and label total) come from re-reading the barcode here,
@@ -89,7 +94,7 @@ class SaleService
                 throw new BusinessRuleException(__(':p must be sold in whole units.', ['p' => $product->name]));
             }
 
-            $resolved = $this->prices->resolve($product, $unit, $qty, $customer);
+            $resolved = $this->prices->resolve($product, $unit, $qty, $customer, $branchId);
             $price = $resolved['price'];
             $tier = $resolved['tier'];
             if (! empty($line['price_override']) && isset($line['unit_price']) && Money::cmp($line['unit_price'], $price) !== 0) {
@@ -104,6 +109,12 @@ class SaleService
                 $tier = 'scale';
             }
 
+            // Promotions are worked out here from the server's price, never taken from the browser.
+            // A manager's price override replaces the promotion.
+            $promo = $tier === 'override'
+                ? ['discount' => '0.00', 'promotion' => null]
+                : app(PromotionService::class)->lineDiscount($product, $qty, Money::round($price), $branchId, $this->offline['sold_at'] ?? now());
+
             $factor = $unit ? (string) $unit->factor : '1';
             $priced[$i] = [
                 'product' => $product,
@@ -113,13 +124,15 @@ class SaleService
                 'factor' => $factor,
                 'base_qty' => Qty::mul($qty, $factor),
                 'unit_price' => Money::round($price),
-                'list_price' => Money::round($unit ? $unit->retail_price : $product->retail_price),
+                'list_price' => Money::round($resolved['list_price']),
                 'tier' => $tier,
+                'promo_discount' => $promo['discount'],
+                'promotion' => $promo['promotion'],
                 'discount_type' => in_array($line['discount_type'] ?? null, ['percent', 'fixed'], true) ? $line['discount_type'] : null,
                 'discount_value' => $line['discount_value'] ?? null,
                 'tax_type' => $product->tax_type->value,
                 'tax_rate' => $product->taxRate(),
-                'unit_cost' => Money::mul($product->cost_price, $factor),
+                'unit_cost' => Money::mul($product->is_bundle ? $this->bundleCost($product) : $product->cost_price, $factor),
             ];
         }
 
@@ -189,7 +202,7 @@ class SaleService
                 throw new BusinessRuleException(__('Customer not found.'));
             }
 
-            ['lines' => $lines] = $this->priceLines($cart['lines'], $customer, $cashier, $approvals);
+            ['lines' => $lines] = $this->priceLines($cart['lines'], $customer, $cashier, $approvals, $shift->branch_id);
 
             // Loyalty redemption is applied as an extra fixed cart discount.
             $redeemPoints = 0;
@@ -200,7 +213,7 @@ class SaleService
             }
 
             $calculator = CartCalculator::fromSettings();
-            $calcLines = array_map(fn ($l) => Arr::only($l, ['qty', 'unit_price', 'discount_type', 'discount_value', 'tax_rate']), $lines);
+            $calcLines = array_map(fn ($l) => Arr::only($l, ['qty', 'unit_price', 'promo_discount', 'discount_type', 'discount_value', 'tax_rate']), $lines);
             $preview = $calculator->calculate($calcLines, $cart['cart_discount_type'] ?? null, $cart['cart_discount_value'] ?? null);
             $cartDiscountAmount = Money::add($preview['cart_discount'], $loyaltyValue);
             $totals = Money::isPositive($loyaltyValue)
@@ -264,26 +277,49 @@ class SaleService
                     'discount_value' => $line['discount_type'] ? Money::round($line['discount_value']) : null,
                     'discount_amount' => $calc['discount_amount'],
                     'cart_discount_share' => $calc['cart_discount_share'],
+                    'promotion_id' => $line['promotion']?->id,
+                    'promotion_name' => $line['promotion'] ? Str::limit($line['promotion']->name.' · '.$line['promotion']->summary(), 120, '') : null,
+                    'promo_discount' => $calc['promo_discount'],
                     'tax_type' => $line['tax_type'],
                     'tax_rate' => $line['tax_rate'],
                     'tax_amount' => $calc['tax_amount'],
                     'line_total' => $calc['line_total'],
                 ]);
 
-                if ($this->offline && $line['product']->track_stock && Qty::lt($this->stock->available($sale->branch_id, $line['product']->id), $line['base_qty'])) {
-                    $this->flagOffline('negative_stock');
-                }
-                try {
-                    $movements = $this->stock->issue($sale->branch_id, $line['product'], $line['base_qty'], MovementType::Sale, $sale, $allowNegative);
-                } catch (InsufficientStockException $e) {
-                    if ($policy === 'warn') {
-                        throw new ApprovalRequiredException('negative_stock', 'sales.negative_stock', $e->getMessage().' '.__('A manager can approve selling beyond stock.'));
+                $issue = function (Product $product, string $quantity) use ($sale, $allowNegative, $policy) {
+                    if ($this->offline && $product->track_stock && Qty::lt($this->stock->available($sale->branch_id, $product->id), $quantity)) {
+                        $this->flagOffline('negative_stock');
                     }
-                    throw new BusinessRuleException($e->getMessage());
-                }
-                if ($movements->isNotEmpty() && Qty::isPositive($line['base_qty'])) {
-                    $cost = Money::div(Money::sum($movements, fn ($m) => Money::mul(Qty::abs($m->quantity), $m->unit_cost)), $line['base_qty']);
-                    $item->update(['cost_price' => Money::mul($cost, $line['factor'])]);
+                    try {
+                        return $this->stock->issue($sale->branch_id, $product, $quantity, MovementType::Sale, $sale, $allowNegative);
+                    } catch (InsufficientStockException $e) {
+                        if ($policy === 'warn') {
+                            throw new ApprovalRequiredException('negative_stock', 'sales.negative_stock', $e->getMessage().' '.__('A manager can approve selling beyond stock.'));
+                        }
+                        throw new BusinessRuleException($e->getMessage());
+                    }
+                };
+                $movementCost = fn ($movements) => Money::sum($movements, fn ($m) => Money::mul(Qty::abs($m->quantity), $m->unit_cost));
+
+                if ($line['product']->is_bundle) {
+                    // A bundle issues each component; its cost is what the components cost.
+                    $cost = '0.00';
+                    $components = [];
+                    foreach ($line['product']->bundleItems as $bundleItem) {
+                        $need = Qty::mul($line['base_qty'], $bundleItem->quantity);
+                        $movements = $issue($bundleItem->component, $need);
+                        $cost = Money::add($cost, $movements->isNotEmpty() ? $movementCost($movements) : Money::mul($need, $bundleItem->component->cost_price));
+                        $components[] = ['product_id' => $bundleItem->component_id, 'name' => $bundleItem->component->name, 'quantity' => (string) $bundleItem->quantity];
+                    }
+                    $item->update([
+                        'bundle_components' => $components,
+                        'cost_price' => Qty::isPositive($line['base_qty']) ? Money::mul(Money::div($cost, $line['base_qty']), $line['factor']) : $item->cost_price,
+                    ]);
+                } else {
+                    $movements = $issue($line['product'], $line['base_qty']);
+                    if ($movements->isNotEmpty() && Qty::isPositive($line['base_qty'])) {
+                        $item->update(['cost_price' => Money::mul(Money::div($movementCost($movements), $line['base_qty']), $line['factor'])]);
+                    }
                 }
             }
 
@@ -293,6 +329,9 @@ class SaleService
                 unset($row['intent']);
                 $sale->payments()->create($row + ['branch_id' => $sale->branch_id, 'shift_id' => $shift->id, 'received_by' => $cashier->id]);
                 $intent?->update(['sale_id' => $sale->id]);
+                if ($row['method'] === PaymentMethod::GiftCard->value && ! empty($row['meta']['gift_card_id'])) {
+                    app(GiftCardService::class)->redeem($row['meta']['gift_card_id'], $row['amount'], $sale, $cashier);
+                }
             }
 
             if ($customer && Money::isPositive($creditAmount)) {
@@ -424,6 +463,8 @@ class SaleService
                     $movement->unit_cost, null, null, __('Void :n', ['n' => $sale->number]), $movement->batch_id);
             }
 
+            app(GiftCardService::class)->restoreForSale($sale, $approver);
+
             if ($sale->customer_id) {
                 $customer = Customer::withTrashed()->find($sale->customer_id);
                 $credit = Money::sum($sale->payments->where('method', PaymentMethod::Credit), 'amount');
@@ -465,8 +506,9 @@ class SaleService
 
     protected function checkDiscounts(array $lines, array $totals, array $preview, User $user, array $approvals): void
     {
+        // Promotions are set up by managers, so only manual discounts count here.
         $max = setting('pos.max_discount_percent', 10);
-        $hasDiscount = Money::isPositive($preview['discount_total']);
+        $hasDiscount = Money::isPositive(Money::add($preview['line_discounts'], $preview['cart_discount']));
         if (! $hasDiscount) {
             return;
         }
@@ -477,11 +519,11 @@ class SaleService
         $above = false;
         foreach ($lines as $key => $line) {
             $calc = $totals['lines'][$key];
-            if (Money::isPositive($calc['discount_amount']) && Money::gt(CartCalculator::discountPercent($calc['gross'], $calc['discount_amount']), $max)) {
+            if (Money::isPositive($calc['discount_amount']) && Money::gt(CartCalculator::discountPercent($calc['discount_base'], $calc['discount_amount']), $max)) {
                 $above = true;
             }
         }
-        $afterLines = Money::sub($preview['subtotal'], $preview['line_discounts']);
+        $afterLines = Money::sub(Money::sub($preview['subtotal'], $preview['promo_discounts']), $preview['line_discounts']);
         if (Money::isPositive($preview['cart_discount']) && Money::gt(CartCalculator::discountPercent($afterLines, $preview['cart_discount']), $max)) {
             $above = true;
         }
@@ -501,8 +543,10 @@ class SaleService
                 continue;
             }
             // Compare the VAT-exclusive selling price with the (VAT-exclusive) cost.
+            // A manager-configured promotion may sell below cost (loss leader); manual discounts may not.
             $calc = $totals['lines'][$key];
-            $netUnit = Money::div(Money::sub($calc['net_total'], setting('tax.prices_include_vat', true) ? $calc['tax_amount'] : 0), $line['qty']);
+            $net = Money::sub($calc['net_total'], setting('tax.prices_include_vat', true) ? $calc['tax_amount'] : 0);
+            $netUnit = Money::div(Money::add($net, $calc['promo_discount'] ?? 0), $line['qty']);
             if (Money::lt($netUnit, $line['unit_cost'])) {
                 if ($policy === 'block' && $this->offline) {
                     $this->flagOffline('below_cost');
@@ -525,6 +569,7 @@ class SaleService
         $change = '0.00';
         $credit = '0.00';
         $storeCredit = '0.00';
+        $giftCardUse = [];
         $enabled = collect(PaymentMethod::enabled())->map->value->all();
 
         // Non-cash first so cash absorbs change (USD before TZS cash).
@@ -595,6 +640,21 @@ class SaleService
                 }
                 $storeCredit = Money::add($storeCredit, $amount);
             }
+            $giftCard = null;
+            if ($method === PaymentMethod::GiftCard) {
+                // The card is locked and checked here; the balance is spent once the sale exists.
+                $code = GiftCard::normalizeCode($payment['reference'] ?? '');
+                $giftCardUse[$code] = Money::add($giftCardUse[$code] ?? '0.00', $amount);
+                try {
+                    $giftCard = app(GiftCardService::class)->lockForPayment($code, $giftCardUse[$code]);
+                } catch (BusinessRuleException $e) {
+                    if (! $this->offline) {
+                        throw $e;
+                    }
+                    $this->flagOffline('gift_card');
+                }
+                $payment['reference'] = $giftCard?->displayCode() ?? $code;
+            }
 
             $rows[] = [
                 'method' => $method->value,
@@ -608,6 +668,7 @@ class SaleService
                     $method->isForeign() => ['currency' => 'USD', 'foreign_amount' => $foreign, 'rate' => Money::round(setting('currency.usd_rate')),
                         'tendered' => Money::round($payment['amount']), 'change' => Money::sub($payment['amount'], $amount)],
                     $method === PaymentMethod::Cash => ['tendered' => $payment['amount'], 'change' => Money::sub($payment['amount'], $amount)],
+                    $method === PaymentMethod::GiftCard => ['gift_card_id' => $giftCard?->id],
                     default => null,
                 },
             ];
@@ -628,17 +689,25 @@ class SaleService
         return [$rows, $paid, $tendered, $change, $credit, $storeCredit];
     }
 
+    /** Current cost of one bundle: the sum of its components' costs. */
+    public function bundleCost(Product $bundle): string
+    {
+        return Money::sum($bundle->bundleItems, fn ($b) => Money::mul($b->quantity, $b->component->cost_price));
+    }
+
     protected function recordApprovals(Sale $sale, User $cashier, array $approvals, array $totals): void
     {
         foreach ($approvals as $action => $approverId) {
             if ($approver = User::find($approverId)) {
-                $this->approvals->record($action, $cashier, $approver, $sale, $action === 'discount' ? $totals['discount_total'] : $sale->total);
+                $this->approvals->record($action, $cashier, $approver, $sale, $action === 'discount' ? Money::add($totals['line_discounts'], $totals['cart_discount']) : $sale->total);
             }
         }
         $max = setting('pos.max_discount_percent', 10);
-        if (Money::isPositive($totals['discount_total']) && Money::gt(CartCalculator::discountPercent($totals['subtotal'], $totals['discount_total']), $max)) {
+        $manual = Money::add($totals['line_discounts'], $totals['cart_discount']);
+        $base = Money::sub($totals['subtotal'], $totals['promo_discounts'] ?? 0);
+        if (Money::isPositive($manual) && Money::gt(CartCalculator::discountPercent($base, $manual), $max)) {
             activity('sales')->causedBy($cashier)->performedOn($sale)
-                ->withProperties(['discount' => $totals['discount_total'], 'subtotal' => $totals['subtotal']])
+                ->withProperties(['discount' => $manual, 'subtotal' => $totals['subtotal']])
                 ->log('Discount above limit');
         }
     }

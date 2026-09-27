@@ -14,6 +14,7 @@ enum PaymentMethod: string implements HasLabel
     case Bank = 'bank';
     case Credit = 'credit';
     case StoreCredit = 'store_credit';
+    case GiftCard = 'gift_card';
 
     public function label(): string
     {
@@ -28,6 +29,7 @@ enum PaymentMethod: string implements HasLabel
             self::Bank => __('Bank transfer'),
             self::Credit => __('Credit (account)'),
             self::StoreCredit => __('Store credit'),
+            self::GiftCard => __('Gift card / voucher'),
         };
     }
 
@@ -41,6 +43,7 @@ enum PaymentMethod: string implements HasLabel
             self::Bank => 'bi-bank',
             self::Credit => 'bi-journal-text',
             self::StoreCredit => 'bi-wallet2',
+            self::GiftCard => 'bi-gift',
         };
     }
 
@@ -65,10 +68,22 @@ enum PaymentMethod: string implements HasLabel
         return $this->isMobileMoney() || in_array($this, [self::Card, self::Bank], true);
     }
 
-    /** Methods enabled in settings. */
+    /**
+     * Paid from a balance the business already holds (customer account, store
+     * credit, gift card), not new money. These can't pay expenses, suppliers,
+     * customer debts or layaway deposits.
+     */
+    public function isAccount(): bool
+    {
+        return in_array($this, [self::Credit, self::StoreCredit, self::GiftCard], true);
+    }
+
+    /** Methods enabled in settings (gift cards follow Settings → Features). */
     public static function enabled(): array
     {
-        return array_values(array_filter(self::cases(), fn (self $m) => (bool) setting('payments.'.$m->value, $m !== self::CashUsd)));
+        return array_values(array_filter(self::cases(), fn (self $m) => $m === self::GiftCard
+            ? feature('gift_cards')
+            : (bool) setting('payments.'.$m->value, $m !== self::CashUsd)));
     }
 
     public static function options(): array

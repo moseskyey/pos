@@ -24,9 +24,12 @@ beforeEach(function () {
     $this->owner = actingAsRole('owner');
 });
 
-it('keeps every existing module switched on by default, with loyalty opt-in', function () {
-    foreach (array_keys(Features::all()) as $feature) {
-        expect(Features::enabled($feature))->toBe($feature !== 'loyalty', "$feature default");
+it('keeps existing modules on by default and new ones opt-in', function () {
+    foreach (['quotations', 'layaway', 'credit_terms', 'variants', 'batches', 'scale_items', 'transfers', 'stock_takes', 'expenses', 'whatsapp', 'email_documents', 'promotions'] as $feature) {
+        expect(Features::enabled($feature))->toBeTrue("$feature should default on");
+    }
+    foreach (['loyalty', 'branch_prices', 'bundles', 'gift_cards'] as $feature) {
+        expect(Features::enabled($feature))->toBeFalse("$feature should be opt-in");
     }
 });
 

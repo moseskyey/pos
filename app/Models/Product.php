@@ -22,7 +22,7 @@ class Product extends Model
     protected $fillable = [
         'parent_id', 'name', 'sku', 'category_id', 'brand_id', 'unit_id',
         'cost_price', 'retail_price', 'wholesale_price', 'wholesale_min_qty', 'tax_type',
-        'reorder_level', 'track_stock', 'track_batches', 'is_weighted', 'has_variants', 'variant_attributes',
+        'reorder_level', 'track_stock', 'track_batches', 'is_weighted', 'has_variants', 'is_bundle', 'variant_attributes',
         'image_path', 'description', 'is_active',
     ];
 
@@ -35,6 +35,7 @@ class Product extends Model
         'track_batches' => false,
         'is_weighted' => false,
         'has_variants' => false,
+        'is_bundle' => false,
         'is_active' => true,
     ];
 
@@ -51,6 +52,7 @@ class Product extends Model
             'track_batches' => 'boolean',
             'is_weighted' => 'boolean',
             'has_variants' => 'boolean',
+            'is_bundle' => 'boolean',
             'variant_attributes' => 'array',
             'is_active' => 'boolean',
         ];
@@ -65,6 +67,17 @@ class Product extends Model
     }
 
     // Relationships ----------------------------------------------------------
+
+    /** Components issued from stock when this bundle / kit is sold. */
+    public function bundleItems(): HasMany
+    {
+        return $this->hasMany(BundleItem::class, 'bundle_id');
+    }
+
+    public function branchPrices(): HasMany
+    {
+        return $this->hasMany(BranchPrice::class);
+    }
 
     public function category(): BelongsTo
     {
