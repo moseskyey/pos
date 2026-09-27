@@ -13,7 +13,16 @@
                 <span><i class="bi bi-calendar3"></i> {{ format_date($sale->created_at, true) }}</span>
                 <span><i class="bi bi-shop"></i> {{ $sale->branch->name }}{{ $sale->register ? ' · '.$sale->register->name : '' }}</span>
                 <span><i class="bi bi-person-badge"></i> {{ $sale->cashier?->name }}</span>
+                @if ($sale->synced_at)
+                    <span class="badge text-bg-info-soft"><i class="bi bi-wifi-off"></i> {{ __('Offline sale · synced :t', ['t' => format_date($sale->synced_at, true)]) }}</span>
+                @endif
             </div>
+            @if ($sale->review_flags)
+                <div class="alert alert-warning small py-2 mt-2 mb-0">
+                    <i class="bi bi-flag"></i> <strong>{{ __('Needs review:') }}</strong>
+                    {{ collect($sale->review_flags)->map(fn ($f) => __(\App\Models\Sale::REVIEW_FLAGS[$f] ?? \Illuminate\Support\Str::headline($f)))->join(' · ') }}
+                </div>
+            @endif
         </div>
         <div class="page-actions"><livewire:sales.sale-actions :sale="$sale" /></div>
     </div>

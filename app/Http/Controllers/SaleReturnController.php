@@ -10,21 +10,21 @@ class SaleReturnController extends Controller
 {
     public function index(Request $request): View
     {
-        abort_unless($request->user()->canAny(['sales.return', 'sales.view_all']), 403);
+        $this->authorize('viewAny', SaleReturn::class);
 
         return view('returns.index');
     }
 
     public function create(Request $request): View
     {
-        abort_unless($request->user()->canAny(['sales.return', 'pos.access']), 403);
+        $this->authorize('create', SaleReturn::class);
 
         return view('returns.create', ['saleId' => $request->integer('sale') ?: null]);
     }
 
     public function show(Request $request, SaleReturn $return): View
     {
-        abort_unless($request->user()->canAny(['sales.return', 'sales.view_all']) || $return->user_id === $request->user()->id, 403);
+        $this->authorize('view', $return);
         $return->load(['items.product', 'sale', 'customer', 'user', 'approver', 'branch']);
 
         return view('returns.show', ['return' => $return]);

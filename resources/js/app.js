@@ -11,6 +11,8 @@ import TomSelect from 'tom-select';
 
 import './ui';
 import './charts';
+import './escpos';
+import './offline';
 import './pos';
 
 window.bootstrap = bootstrap;

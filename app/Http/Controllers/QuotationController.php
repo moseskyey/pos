@@ -12,21 +12,21 @@ class QuotationController extends Controller
 {
     public function index(Request $request): View
     {
-        abort_unless($request->user()->can('quotations.manage'), 403);
+        $this->authorize('manageQuotations', Sale::class);
 
         return view('quotations.index');
     }
 
     public function create(Request $request): View
     {
-        abort_unless($request->user()->can('quotations.manage'), 403);
+        $this->authorize('manageQuotations', Sale::class);
 
         return view('quotations.form', ['quotation' => null]);
     }
 
     public function edit(Request $request, Sale $quotation): View
     {
-        abort_unless($request->user()->can('quotations.manage') && $quotation->status === SaleStatus::Quotation, 403);
+        $this->authorize('updateQuotation', $quotation);
         $quotation->load('items');
 
         return view('quotations.form', compact('quotation'));
@@ -34,7 +34,7 @@ class QuotationController extends Controller
 
     public function show(Request $request, Sale $quotation): View
     {
-        abort_unless($request->user()->can('quotations.manage'), 403);
+        $this->authorize('viewQuotation', $quotation);
         abort_unless(in_array($quotation->status, [SaleStatus::Quotation, SaleStatus::Converted], true), 404);
         $quotation->load(['items', 'customer', 'cashier', 'convertedSale']);
 
@@ -43,7 +43,7 @@ class QuotationController extends Controller
 
     public function convert(Request $request, Sale $quotation): RedirectResponse
     {
-        abort_unless($request->user()->can('pos.access') && $quotation->status === SaleStatus::Quotation, 403);
+        $this->authorize('convertQuotation', $quotation);
 
         return redirect()->route('pos', ['quotation' => $quotation->id]);
     }

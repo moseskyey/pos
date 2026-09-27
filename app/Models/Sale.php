@@ -14,10 +14,23 @@ class Sale extends Model
 {
     use BelongsToBranch;
 
+    /** Reasons an offline sale is flagged for a manager (see SaleService::recordOffline). */
+    public const REVIEW_FLAGS = [
+        'price_override' => 'Price changed since the till went offline',
+        'discount' => 'Discount without approval',
+        'below_cost' => 'Sold below cost',
+        'negative_stock' => 'Sold more than the recorded stock',
+        'short_paid' => 'Paid less than the total',
+        'missing_reference' => 'Mobile money reference missing',
+        'shift_closed' => 'Synced after the shift was closed',
+        'inactive_product' => 'Product was deactivated',
+        'credit_limit' => 'Credit limit exceeded',
+    ];
+
     protected $fillable = [
         'branch_id', 'register_id', 'shift_id', 'user_id', 'customer_id', 'number', 'status',
         'subtotal', 'discount_total', 'tax_total', 'rounding', 'total', 'paid_total', 'tendered', 'change_due', 'balance_due',
-        'cart_discount_type', 'cart_discount_value', 'hold_note', 'note', 'idempotency_key', 'valid_until', 'converted_sale_id',
+        'cart_discount_type', 'cart_discount_value', 'hold_note', 'note', 'idempotency_key', 'valid_until', 'converted_sale_id', 'synced_at', 'review_flags',
         'completed_at', 'voided_at', 'voided_by', 'void_reason', 'reprint_count', 'fiscal_code', 'fiscal_qr', 'loyalty_earned', 'loyalty_redeemed',
     ];
 
@@ -37,6 +50,8 @@ class Sale extends Model
             'cart_discount_value' => 'decimal:2',
             'valid_until' => 'date',
             'completed_at' => 'datetime',
+            'synced_at' => 'datetime',
+            'review_flags' => 'array',
             'voided_at' => 'datetime',
         ];
     }

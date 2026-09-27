@@ -116,3 +116,18 @@ it('keeps watching a failed push and picks up a late FastLipa confirmation', fun
         ->call('checkout');
     expect(Sale::first()->payments->first()->gateway_reference)->toBe('TX1');
 });
+
+it('takes US dollars at the till', function () {
+    setting()->set(['payments.cash_usd' => true, 'currency.usd_rate' => 2500]);
+    Livewire::test(Terminal::class)->set('openingFloat', 0)->call('openShift')
+        ->call('addProduct', $this->product->id)->call('addProduct', $this->product->id)->call('addProduct', $this->product->id)
+        ->call('openPayment')->call('addPayment', 'cash_usd')
+        ->assertSet('payments.0.method', 'cash_usd')
+        ->assertSet('payments.0.foreign_amount', 1.0)
+        ->set('payments.0.foreign_amount', 2)
+        ->assertSet('payments.0.amount', 5000.0)
+        ->assertSee('US$')
+        ->call('checkout');
+    $sale = Sale::first();
+    expect($sale->total)->toEqual('1500.00')->and($sale->change_due)->toEqual('3500.00');
+});

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Exports\ArrayExport;
+use App\Http\Requests\ProductImportRequest;
 use App\Services\ProductImportService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -17,7 +18,7 @@ class ProductImportController extends Controller
 
     public function create(Request $request): View
     {
-        abort_unless($request->user()->can('products.import'), 403);
+        $this->authorize('products.import');
         $preview = null;
         $token = $request->session()->get('product_import');
         if ($token && Storage::disk('local')->exists("imports/$token.json")) {
@@ -27,11 +28,9 @@ class ProductImportController extends Controller
         return view('products.import', ['preview' => $preview]);
     }
 
-    public function upload(Request $request): RedirectResponse
+    public function upload(ProductImportRequest $request): RedirectResponse
     {
-        abort_unless($request->user()->can('products.import'), 403);
-        $request->validate(['file' => ['required', 'file', 'mimes:xlsx,xls,csv', 'max:10240']]);
-
+        $this->authorize('products.import');
         $token = bin2hex(random_bytes(8));
         $path = $request->file('file')->storeAs('imports', "$token.".$request->file('file')->getClientOriginalExtension(), 'local');
         $rows = $this->service->preview(Storage::disk('local')->path($path));
@@ -48,7 +47,7 @@ class ProductImportController extends Controller
 
     public function commit(Request $request): RedirectResponse
     {
-        abort_unless($request->user()->can('products.import'), 403);
+        $this->authorize('products.import');
         $token = $request->session()->pull('product_import');
         abort_unless($token && Storage::disk('local')->exists("imports/$token.json"), 404);
 
@@ -71,14 +70,14 @@ class ProductImportController extends Controller
 
     public function template(Request $request): BinaryFileResponse
     {
-        abort_unless($request->user()->can('products.import'), 403);
+        $this->authorize('products.import');
 
         return Excel::download(new ArrayExport(ProductImportService::headings(), $this->service->templateRows(), 'Products'), 'dukapos-products-template.xlsx');
     }
 
     public function export(Request $request): BinaryFileResponse
     {
-        abort_unless($request->user()->can('products.import'), 403);
+        $this->authorize('products.import');
         activity('exports')->log('Exported all products');
 
         return Excel::download(new ArrayExport(ProductImportService::headings(), $this->service->exportRows(), 'Products'), 'products-'.now()->format('Ymd').'.xlsx');

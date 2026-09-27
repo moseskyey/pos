@@ -26,7 +26,7 @@ class FileController extends Controller
                 if ($prefix === 'exports/') {
                     abort_unless(str_starts_with($path, 'exports/'.$request->user()->id.'/'), 403);
                 } else {
-                    abort_unless($request->user()->can($permission), 403);
+                    $this->authorize($permission);
                 }
             }
         }

@@ -181,6 +181,7 @@ return [
         'currency.decimals' => 0,
         'currency.thousands_separator' => ',',
         'currency.decimal_separator' => '.',
+        'currency.usd_rate' => 2500, // TZS per 1 USD, for Cash (USD) payments
         'tax.vat_rate' => 18,
         'tax.prices_include_vat' => true,
 
@@ -191,6 +192,8 @@ return [
         'receipt.show_logo' => true,
         'receipt.auto_print' => false,
         'receipt.show_qr' => true,
+        'receipt.print_mode' => 'browser', // browser | escpos (direct to USB/serial thermal printer)
+        'receipt.drawer_kick' => true, // open the cash drawer on cash sales (escpos mode)
 
         // POS
         'pos.negative_stock' => 'block', // block | warn | allow
@@ -212,6 +215,7 @@ return [
 
         // Payment methods
         'payments.cash' => true,
+        'payments.cash_usd' => false,
         'payments.mpesa' => true,
         'payments.tigopesa' => true,
         'payments.airtel' => true,

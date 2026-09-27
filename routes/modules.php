@@ -5,6 +5,7 @@ use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\CustomerPaymentController;
 use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\LabelController;
+use App\Http\Controllers\OfflinePosController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProductImportController;
 use App\Http\Controllers\PurchaseController;
@@ -72,6 +73,10 @@ Route::post('/stock-takes/{stockTake}/cancel', [StockTakeController::class, 'can
 
 // ------------------------------------------------------------ POS & shifts --
 Route::view('/pos', 'pos.index')->middleware('can:pos.access')->name('pos');
+Route::get('/pos/offline', [OfflinePosController::class, 'page'])->name('pos.offline');
+Route::get('/pos/offline/catalog', [OfflinePosController::class, 'catalog'])->name('pos.offline.catalog');
+Route::get('/pos/offline/ping', [OfflinePosController::class, 'ping'])->name('pos.offline.ping');
+Route::post('/pos/offline/sync', [OfflinePosController::class, 'sync'])->middleware('throttle:30,1')->name('pos.offline.sync');
 Route::get('/shifts', [ShiftController::class, 'index'])->name('shifts.index');
 Route::get('/shifts/current', [ShiftController::class, 'current'])->name('shifts.current');
 Route::get('/shifts/{shift}', [ShiftController::class, 'show'])->name('shifts.show');
@@ -83,6 +88,8 @@ Route::get('/receipts/{sale}', [ReceiptController::class, 'show'])->name('receip
 Route::get('/receipts/{sale}/reprint', [ReceiptController::class, 'reprint'])->name('receipts.reprint');
 Route::get('/receipts/{sale}/invoice', [ReceiptController::class, 'invoice'])->name('receipts.invoice');
 Route::get('/receipts/{sale}/delivery-note', [ReceiptController::class, 'deliveryNote'])->name('receipts.delivery-note');
+Route::get('/receipts/{sale}/escpos', [ReceiptController::class, 'escpos'])->name('receipts.escpos');
+Route::post('/pos/drawer', [ReceiptController::class, 'openDrawer'])->middleware('throttle:20,1')->name('pos.drawer');
 
 // ---------------------------------------------------- Sales & customers --
 Route::get('/sales', [SaleController::class, 'index'])->name('sales.index');
@@ -105,6 +112,7 @@ Route::post('/customer-payments', [CustomerPaymentController::class, 'store'])->
 Route::get('/customer-payments/{customerPayment}', [CustomerPaymentController::class, 'show'])->name('customer-payments.show');
 
 // -------------------------------------------------- Purchases & expenses --
+Route::get('/suppliers/{supplier}/statement', [SupplierController::class, 'statement'])->name('suppliers.statement');
 Route::resource('suppliers', SupplierController::class);
 Route::get('/purchase-orders', [PurchaseController::class, 'orders'])->name('purchase-orders.index');
 Route::get('/purchase-orders/create', [PurchaseController::class, 'createOrder'])->name('purchase-orders.create');
@@ -112,6 +120,7 @@ Route::get('/purchase-orders/{purchaseOrder}', [PurchaseController::class, 'show
 Route::get('/purchase-orders/{purchaseOrder}/edit', [PurchaseController::class, 'editOrder'])->name('purchase-orders.edit');
 Route::get('/purchase-orders/{purchaseOrder}/pdf', [PurchaseController::class, 'orderPdf'])->name('purchase-orders.pdf');
 Route::post('/purchase-orders/{purchaseOrder}/send', [PurchaseController::class, 'sendOrder'])->name('purchase-orders.send');
+Route::post('/purchase-orders/{purchaseOrder}/email', [PurchaseController::class, 'emailOrder'])->middleware('throttle:10,1')->name('purchase-orders.email');
 Route::post('/purchase-orders/{purchaseOrder}/cancel', [PurchaseController::class, 'cancelOrder'])->name('purchase-orders.cancel');
 Route::get('/goods-receipts', [PurchaseController::class, 'receipts'])->name('goods-receipts.index');
 Route::get('/goods-receipts/create', [PurchaseController::class, 'createReceipt'])->name('goods-receipts.create');

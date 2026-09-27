@@ -13,7 +13,7 @@ class StockController extends Controller
 {
     public function index(Request $request, BranchContext $context): View
     {
-        abort_unless($request->user()->can('stock.view'), 403);
+        $this->authorize('stock.view');
 
         $base = ProductStock::query()->join('products', 'products.id', '=', 'product_stocks.product_id')
             ->whereNull('products.deleted_at')->where('products.track_stock', true);
@@ -32,14 +32,14 @@ class StockController extends Controller
 
     public function movements(Request $request): View
     {
-        abort_unless($request->user()->can('stock.view'), 403);
+        $this->authorize('stock.view');
 
         return view('stock.movements');
     }
 
     public function batches(Request $request): View
     {
-        abort_unless($request->user()->can('stock.view'), 403);
+        $this->authorize('stock.view');
 
         return view('stock.batches');
     }

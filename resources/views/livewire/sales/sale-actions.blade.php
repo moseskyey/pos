@@ -4,6 +4,9 @@
         <a href="{{ route('receipts.invoice', $sale) }}" target="_blank" class="btn btn-outline-secondary"><i class="bi bi-file-earmark-pdf"></i> {{ __('Invoice') }}</a>
         <a href="{{ route('receipts.delivery-note', $sale) }}" target="_blank" class="btn btn-outline-secondary">{{ __('Delivery note') }}</a>
     </div>
+    @if (in_array($sale->status->value, ['completed', 'layaway', 'converted']))
+        <a href="{{ app(\App\Services\ShareService::class)->saleLink($sale) }}" target="_blank" rel="noopener" class="btn btn-outline-success"><i class="bi bi-whatsapp"></i> WhatsApp</a>
+    @endif
     @if ($sale->customer?->phone)
         <button type="button" class="btn btn-outline-secondary" wire:click="sendSms"><i class="bi bi-chat-dots"></i> SMS</button>
     @endif

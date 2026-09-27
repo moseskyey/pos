@@ -46,6 +46,7 @@
                                 <div class="col-md-4"><x-input :name="$f('currency.symbol')" :label="__('Currency symbol')" :value="$s['currency.symbol']" required /></div>
                                 <div class="col-md-4"><x-select :name="$f('currency.decimals')" :label="__('Decimal places')" :options="[0 => '0 (TSh 12,500)', 2 => '2 (TSh 12,500.00)']" :value="$s['currency.decimals']" /></div>
                                 <div class="col-md-4"><x-input :name="$f('currency.thousands_separator')" :label="__('Thousands separator')" :value="$s['currency.thousands_separator']" maxlength="1" /></div>
+                                <div class="col-md-4"><x-input :name="$f('currency.usd_rate')" type="number" step="0.01" :label="__('USD exchange rate')" :value="$s['currency.usd_rate']" prefix="1 US$ =" suffix="TSh" :help="__('Used for Cash (USD) payments. Change is given in shillings.')" /></div>
                                 <div class="col-md-4"><x-input :name="$f('tax.vat_rate')" type="number" step="0.01" :label="__('VAT rate')" :value="$s['tax.vat_rate']" suffix="%" required /></div>
                                 <div class="col-md-8 pt-md-4"><x-toggle :name="$f('tax.prices_include_vat')" :label="__('Selling prices include VAT')" :checked="$s['tax.prices_include_vat']" :help="__('Recommended for retail. VAT is extracted from the price on receipts.')" /></div>
                             </div>
@@ -62,6 +63,9 @@
                                 <div class="col-md-4"><x-toggle :name="$f('receipt.show_logo')" :label="__('Show logo')" :checked="$s['receipt.show_logo']" /></div>
                                 <div class="col-md-4"><x-toggle :name="$f('receipt.show_qr')" :label="__('Show QR code')" :checked="$s['receipt.show_qr']" /></div>
                                 <div class="col-md-4"><x-toggle :name="$f('receipt.auto_print')" :label="__('Auto-print after sale')" :checked="$s['receipt.auto_print']" /></div>
+                                <div class="col-md-6"><x-select :name="$f('receipt.print_mode')" :label="__('Printing')" :options="['browser' => __('Browser print dialog'), 'escpos' => __('Direct to thermal printer (ESC/POS)')]" :value="$s['receipt.print_mode']"
+                                          :help="__('Direct printing works in Chrome or Edge with a USB or serial (COM) receipt printer. Connect it once from the POS screen.')" /></div>
+                                <div class="col-md-6 pt-md-4"><x-toggle :name="$f('receipt.drawer_kick')" :label="__('Open cash drawer on cash sales')" :checked="$s['receipt.drawer_kick']" :help="__('The drawer must be plugged into the receipt printer.')" /></div>
                             </div>
                         </x-card>
                         @break
@@ -96,7 +100,7 @@
                     @case('payments')
                         <x-card :title="__('Payment methods')" icon="bi-credit-card">
                             <div class="row">
-                                @foreach (['cash' => 'Cash', 'mpesa' => 'M-Pesa', 'tigopesa' => 'Mixx by Yas (Tigo Pesa)', 'airtel' => 'Airtel Money', 'halopesa' => 'HaloPesa', 'card' => 'Card', 'bank' => 'Bank transfer', 'credit' => 'Credit (on account)', 'store_credit' => 'Store credit'] as $key => $label)
+                                @foreach (['cash' => 'Cash', 'cash_usd' => 'Cash (USD)', 'mpesa' => 'M-Pesa', 'tigopesa' => 'Mixx by Yas (Tigo Pesa)', 'airtel' => 'Airtel Money', 'halopesa' => 'HaloPesa', 'card' => 'Card', 'bank' => 'Bank transfer', 'credit' => 'Credit (on account)', 'store_credit' => 'Store credit'] as $key => $label)
                                     <div class="col-md-4"><x-toggle :name="$f('payments.'.$key)" :label="__($label)" :checked="$s['payments.'.$key]" /></div>
                                 @endforeach
                             </div>

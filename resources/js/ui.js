@@ -199,3 +199,12 @@ document.addEventListener('livewire:init', () => {
 });
 
 window.dpInitWidgets = initWidgets;
+
+// The offline till page cached by the service worker contains the signed-in
+// user's details: drop it on sign-out. (Queued offline sales are kept.)
+document.addEventListener('submit', (e) => {
+    const action = e.target?.getAttribute?.('action') || '';
+    if (action.endsWith('/logout')) {
+        navigator.serviceWorker?.controller?.postMessage('clear');
+    }
+});

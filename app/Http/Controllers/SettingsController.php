@@ -36,7 +36,7 @@ class SettingsController extends Controller
 
     public function edit(Request $request, SettingsService $settings, string $group = 'business'): View
     {
-        abort_unless($request->user()->can('settings.manage'), 403);
+        $this->authorize('settings.manage');
         abort_unless(array_key_exists($group, self::GROUPS), 404);
 
         $customers = $group === 'pos' && class_exists(Customer::class)

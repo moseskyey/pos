@@ -18,6 +18,8 @@ class BranchContext
 
     protected ?Collection $accessible = null;
 
+    protected ?int $accessibleFor = null;
+
     protected ?int $forcedBranchId = null;
 
     protected bool $bypass = false;
@@ -35,13 +37,15 @@ class BranchContext
     /** @return Collection<int, Branch> */
     public function accessibleBranches(): Collection
     {
-        if ($this->accessible !== null) {
-            return $this->accessible;
-        }
         $user = $this->user();
         if (! $user) {
             return collect();
         }
+        // Memoised per user: one app instance can serve several users (queue workers, tests).
+        if ($this->accessible !== null && $this->accessibleFor === $user->id) {
+            return $this->accessible;
+        }
+        $this->accessibleFor = $user->id;
 
         $query = Branch::query()->where('is_active', true)->orderBy('name');
         if (! $this->canViewAll()) {

@@ -112,3 +112,18 @@
     background: rgba(15, 23, 42, .78);
     backdrop-filter: blur(8px);
 }
+
+// Offline till receipt: printed only --------------------------------------------
+.offline-receipt { display: none; }
+@media print {
+    body.offline-till > .container-fluid > *:not(.row),
+    body.offline-till .card { display: none !important; }
+    body.offline-till .offline-receipt {
+        display: block !important;
+        width: 72mm;
+        font: 12px/1.35 ui-monospace, monospace;
+        .center { text-align: center; }
+        .bold { font-weight: 700; }
+        hr { border-top: 1px dashed #000; margin: 4px 0; }
+    }
+}

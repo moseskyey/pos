@@ -5,6 +5,7 @@ namespace App\Enums;
 enum PaymentMethod: string implements HasLabel
 {
     case Cash = 'cash';
+    case CashUsd = 'cash_usd';
     case Mpesa = 'mpesa';
     case TigoPesa = 'tigopesa';
     case Airtel = 'airtel';
@@ -18,6 +19,7 @@ enum PaymentMethod: string implements HasLabel
     {
         return match ($this) {
             self::Cash => __('Cash'),
+            self::CashUsd => __('Cash (USD)'),
             self::Mpesa => 'M-Pesa',
             self::TigoPesa => 'Mixx by Yas',
             self::Airtel => 'Airtel Money',
@@ -33,6 +35,7 @@ enum PaymentMethod: string implements HasLabel
     {
         return match ($this) {
             self::Cash => 'bi-cash-stack',
+            self::CashUsd => 'bi-currency-dollar',
             self::Mpesa, self::TigoPesa, self::Airtel, self::HaloPesa => 'bi-phone',
             self::Card => 'bi-credit-card',
             self::Bank => 'bi-bank',
@@ -46,6 +49,17 @@ enum PaymentMethod: string implements HasLabel
         return in_array($this, [self::Mpesa, self::TigoPesa, self::Airtel, self::HaloPesa], true);
     }
 
+    /** Physical cash in the drawer (can be over-tendered and give change). */
+    public function isCash(): bool
+    {
+        return in_array($this, [self::Cash, self::CashUsd], true);
+    }
+
+    public function isForeign(): bool
+    {
+        return $this === self::CashUsd;
+    }
+
     public function needsReference(): bool
     {
         return $this->isMobileMoney() || in_array($this, [self::Card, self::Bank], true);
@@ -54,7 +68,7 @@ enum PaymentMethod: string implements HasLabel
     /** Methods enabled in settings. */
     public static function enabled(): array
     {
-        return array_values(array_filter(self::cases(), fn (self $m) => (bool) setting('payments.'.$m->value, true)));
+        return array_values(array_filter(self::cases(), fn (self $m) => (bool) setting('payments.'.$m->value, $m !== self::CashUsd)));
     }
 
     public static function options(): array

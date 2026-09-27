@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\TwoFactorCodeRequest;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
@@ -20,9 +21,8 @@ class TwoFactorChallengeController extends Controller
         return view('auth.two-factor');
     }
 
-    public function store(Request $request, Google2FA $google2fa): RedirectResponse
+    public function store(TwoFactorCodeRequest $request, Google2FA $google2fa): RedirectResponse
     {
-        $request->validate(['code' => ['required', 'digits:6']]);
         $user = $request->user();
         $key = '2fa:'.$user->id;
 

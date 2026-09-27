@@ -2,9 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\RunBackupRequest;
 use App\Jobs\RunBackup;
 use Illuminate\Http\RedirectResponse;
-use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Storage;
@@ -21,9 +21,9 @@ class BackupController extends Controller
         ]);
     }
 
-    public function store(Request $request): RedirectResponse
+    public function store(RunBackupRequest $request): RedirectResponse
     {
-        $data = $request->validate(['type' => ['required', 'in:db,full']]);
+        $data = $request->validated();
         RunBackup::dispatch($request->user()->id, $data['type'] === 'db');
 
         return back()->with('success', __('Backup started. You will be notified when it is ready.'));

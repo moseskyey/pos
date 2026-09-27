@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Exceptions\BusinessRuleException;
+use App\Http\Requests\StartStockTakeRequest;
 use App\Models\Category;
 use App\Models\StockTake;
 use App\Services\StockTakeService;
@@ -17,15 +18,15 @@ class StockTakeController extends Controller
 
     public function index(Request $request): View
     {
-        abort_unless($request->user()->canAny(['stock.take', 'stock.take.approve']), 403);
+        $this->authorize('viewAny', StockTake::class);
 
         return view('stock-takes.index', ['categories' => Category::options()]);
     }
 
-    public function store(Request $request, BranchContext $context): RedirectResponse
+    public function store(StartStockTakeRequest $request, BranchContext $context): RedirectResponse
     {
-        abort_unless($request->user()->can('stock.take'), 403);
-        $data = $request->validate(['category_id' => ['nullable', 'exists:categories,id'], 'note' => ['nullable', 'string', 'max:500']]);
+        $this->authorize('create', StockTake::class);
+        $data = $request->validated();
         $branchId = $context->currentId();
         if (! $branchId) {
             return back()->with('error', __('Select a single branch in the navbar first.'));
@@ -37,7 +38,7 @@ class StockTakeController extends Controller
 
     public function show(Request $request, StockTake $stockTake): View
     {
-        abort_unless($request->user()->canAny(['stock.take', 'stock.take.approve']), 403);
+        $this->authorize('view', $stockTake);
         $stockTake->load(['branch', 'creator', 'approver', 'category']);
 
         return view('stock-takes.show', ['take' => $stockTake]);
@@ -45,21 +46,21 @@ class StockTakeController extends Controller
 
     public function submit(Request $request, StockTake $stockTake): RedirectResponse
     {
-        abort_unless($request->user()->can('stock.take'), 403);
+        $this->authorize('update', $stockTake);
 
         return $this->run(fn () => $this->service->submit($stockTake, $request->user()), __('Stock take submitted for approval.'));
     }
 
     public function post(Request $request, StockTake $stockTake): RedirectResponse
     {
-        abort_unless($request->user()->can('stock.take.approve'), 403);
+        $this->authorize('approve', $stockTake);
 
         return $this->run(fn () => $this->service->post($stockTake, $request->user()), __('Variances posted to stock.'));
     }
 
     public function cancel(Request $request, StockTake $stockTake): RedirectResponse
     {
-        abort_unless($request->user()->canAny(['stock.take', 'stock.take.approve']), 403);
+        $this->authorize('cancel', $stockTake);
 
         return $this->run(fn () => $this->service->cancel($stockTake, $request->user()), __('Stock take cancelled.'));
     }

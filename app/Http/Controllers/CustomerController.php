@@ -25,7 +25,7 @@ class CustomerController extends Controller
 
     public function index(Request $request): View
     {
-        abort_unless($request->user()->can('customers.view'), 403);
+        $this->authorize('viewAny', Customer::class);
 
         return view('customers.index', [
             'count' => Customer::count(),
@@ -37,7 +37,7 @@ class CustomerController extends Controller
 
     public function create(Request $request): View
     {
-        abort_unless($request->user()->can('customers.manage'), 403);
+        $this->authorize('create', Customer::class);
 
         return view('customers.form', ['customer' => new Customer(['type' => 'retail', 'is_active' => true])]);
     }
@@ -60,7 +60,7 @@ class CustomerController extends Controller
 
     public function show(Request $request, Customer $customer): View
     {
-        abort_unless($request->user()->can('customers.view'), 403);
+        $this->authorize('view', $customer);
 
         $stats = DB::table('sales')->where('customer_id', $customer->id)->where('status', SaleStatus::Completed->value)
             ->selectRaw('COUNT(*) as visits, COALESCE(SUM(total),0) as spent, MAX(created_at) as last_visit')->first();
@@ -83,7 +83,7 @@ class CustomerController extends Controller
 
     public function edit(Request $request, Customer $customer): View
     {
-        abort_unless($request->user()->can('customers.manage'), 403);
+        $this->authorize('update', $customer);
 
         return view('customers.form', compact('customer'));
     }
@@ -97,7 +97,7 @@ class CustomerController extends Controller
 
     public function destroy(Request $request, Customer $customer): RedirectResponse
     {
-        abort_unless($request->user()->can('customers.manage'), 403);
+        $this->authorize('delete', $customer);
         if ($customer->balance > 0) {
             return back()->with('error', __('This customer still owes money.'));
         }
@@ -109,7 +109,7 @@ class CustomerController extends Controller
 
     public function statement(Request $request, Customer $customer): Response
     {
-        abort_unless($request->user()->can('customers.view'), 403);
+        $this->authorize('view', $customer);
         $from = $request->date('from') ?? now()->subMonths(3)->startOfMonth();
         $to = $request->date('to') ?? now();
         $data = $this->statements->statement($customer, Carbon::instance($from), Carbon::instance($to));
@@ -120,7 +120,7 @@ class CustomerController extends Controller
 
     public function remind(Request $request, Customer $customer): RedirectResponse
     {
-        abort_unless($request->user()->can('customers.payments'), 403);
+        $this->authorize('collect', Customer::class);
         if (! $customer->phone || $customer->balance <= 0) {
             return back()->with('error', __('This customer has no phone number or no balance.'));
         }
