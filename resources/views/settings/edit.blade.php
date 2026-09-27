@@ -108,7 +108,7 @@
                                 <div class="col-md-6"><x-input :name="$f('payments.fastlipa_api_key')" type="password" :label="__('FastLipa API key')" autocomplete="off"
                                              :help="$s['payments.fastlipa_api_key'] ? __('A key is saved (encrypted). Leave blank to keep it.') : __('Stored encrypted.')" class="mb-0" /></div>
                                 <div class="col-md-6"><x-input :name="$f('payments.fastlipa_webhook_secret')" type="password" :label="__('Webhook signing secret')" autocomplete="off"
-                                             :help="$s['payments.fastlipa_webhook_secret'] ? __('Saved. Leave blank to keep.') : __('Without it, callbacks are verified by re-querying FastLipa.')" class="mb-0" /></div>
+                                             :help="$s['payments.fastlipa_webhook_secret'] ? __('Saved. Leave blank to keep.') : __('Optional. Every callback is confirmed with FastLipa’s status API before it counts.')" class="mb-0" /></div>
                                 <div class="col-12 mt-3"><div class="small text-body-secondary">{{ __('Callback URL') }}: <code class="user-select-all">{{ route('payments.callback', 'fastlipa') }}</code></div></div>
                             </div>
                         </x-card>

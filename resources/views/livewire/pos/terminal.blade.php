@@ -317,7 +317,7 @@
                                                     <input type="text" class="form-control" wire:model="payments.{{ $i }}.reference" placeholder="{{ $method->isMobileMoney() ? __('Transaction ID, e.g. SGH7K2L9QX') : __('Reference') }}" aria-label="{{ __('Reference') }}">
                                                     @if ($method->isMobileMoney() && $supportsPush)
                                                         @php $st = $p['intent_status'] ?? null; @endphp
-                                                        <div class="input-group input-group-sm mt-1" @if (in_array($st, ['pending', 'processing'])) wire:poll.4s="pollStk" @endif>
+                                                        <div class="input-group input-group-sm mt-1" @if (in_array($st, ['pending', 'processing']) || ! empty($p['intent_recheck'])) wire:poll.4s="pollStk" @endif>
                                                             <input type="text" class="form-control @error('payments.'.$i.'.phone') is-invalid @enderror" wire:model="payments.{{ $i }}.phone" placeholder="{{ $this->customer?->displayPhone() ?: '07XX XXX XXX' }}" aria-label="{{ __('Customer phone') }}" @disabled($st === 'completed')>
                                                             @if ($st === 'completed')
                                                                 <span class="input-group-text text-success"><i class="bi bi-check-circle-fill"></i>&nbsp;{{ __('Confirmed') }}</span>
@@ -328,6 +328,9 @@
                                                             @endif
                                                         </div>
                                                         @error('payments.'.$i.'.phone')<div class="text-danger small">{{ $message }}</div>@enderror
+                                                        @if ($st === 'failed' && ! empty($p['intent_recheck']))
+                                                            <div class="small text-warning-emphasis mt-1"><span class="spinner-grow spinner-grow-sm"></span> {{ __('Reported as failed, still checking. If the customer was charged it will confirm here: do not send another push.') }}</div>
+                                                        @endif
                                                     @endif
                                                 @elseif ($method === \App\Enums\PaymentMethod::Credit)
                                                     <span class="small {{ $this->customer ? 'text-body-secondary' : 'text-danger' }}">{{ $this->customer ? __('Limit :l · owes :b', ['l' => money($this->customer->credit_limit), 'b' => money($this->customer->balance)]) : __('Select a customer (F4)') }}</span>
@@ -400,5 +403,30 @@
             <span class="badge text-bg-light border ms-1">{{ $this->shift->register->name }} · {{ $this->shift->number }}</span>
         </div>
         <iframe x-ref="printFrame" class="d-none" title="receipt"></iframe>
+
+        {{-- Idle lock screen ----------------------------------------------------------}}
+        <div wire:ignore x-data="idleLock({ minutes: {{ (int) setting('pos.lock_minutes', 0) }}, locked: @js((bool) session('pos_locked')), lockUrl: @js(route('lock')), verifyUrl: @js(route('lock.verify')) })">
+            <template x-if="locked">
+                <div class="pos-lock-screen d-grid" role="dialog" aria-modal="true" aria-label="{{ __('Terminal locked') }}">
+                    <form class="card shadow-lg text-center" style="width: 340px" @submit.prevent="unlock()">
+                        <div class="card-body p-4">
+                            <x-avatar :user="auth()->user()" size="lg" class="mx-auto mb-3" />
+                            <h5 class="fw-bold mb-1">{{ auth()->user()->name }}</h5>
+                            <p class="text-body-secondary small mb-3"><i class="bi bi-lock-fill"></i> {{ __('Terminal locked. Enter your PIN to continue.') }}</p>
+                            <input x-ref="pin" x-model="pin" type="password" inputmode="numeric" maxlength="6" autocomplete="off"
+                                   class="form-control form-control-lg text-center fs-3 mb-2" style="letter-spacing: .5em" :class="error && 'is-invalid'"
+                                   placeholder="••••" aria-label="{{ __('PIN') }}">
+                            <div class="invalid-feedback d-block mb-2" x-text="error" x-show="error"></div>
+                            <button class="btn btn-primary btn-lg w-100" :disabled="busy || pin.length < 4">
+                                <span x-show="busy" class="spinner-border spinner-border-sm"></span> {{ __('Unlock') }}
+                            </button>
+                        </div>
+                    </form>
+                    <form method="POST" action="{{ route('logout') }}" class="text-center mt-3">@csrf
+                        <button class="btn btn-link text-white text-decoration-none">{{ __('Switch user') }}</button>
+                    </form>
+                </div>
+            </template>
+        </div>
     @endif
 </div>

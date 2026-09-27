@@ -4,6 +4,7 @@ use App\Http\Controllers\ActivityController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\PasswordResetController;
 use App\Http\Controllers\Auth\TwoFactorChallengeController;
+use App\Http\Controllers\BackupController;
 use App\Http\Controllers\BranchController;
 use App\Http\Controllers\BranchSwitchController;
 use App\Http\Controllers\DashboardController;
@@ -54,6 +55,7 @@ Route::middleware(['auth', 'active'])->group(function () {
     Route::post('/profile/two-factor/confirm', [ProfileController::class, 'confirmTwoFactor'])->name('two-factor.confirm');
     Route::delete('/profile/two-factor', [ProfileController::class, 'disableTwoFactor'])->name('two-factor.disable');
     Route::post('/preferences/theme', [ProfileController::class, 'theme'])->name('preferences.theme');
+    Route::post('/lock', [ProfileController::class, 'lock'])->name('lock');
     Route::post('/lock/verify', [ProfileController::class, 'verifyPin'])->middleware('throttle:10,1')->name('lock.verify');
 
     // Notifications
@@ -74,6 +76,14 @@ Route::middleware(['auth', 'active'])->group(function () {
     Route::get('/activity', [ActivityController::class, 'index'])->name('activity.index');
     Route::get('/settings/{group?}', [SettingsController::class, 'edit'])->name('settings.edit');
     Route::put('/settings/{group}', [SettingsController::class, 'update'])->name('settings.update');
+
+    // Backups
+    Route::middleware('can:backups.manage')->controller(BackupController::class)->group(function () {
+        Route::get('/backups', 'index')->name('backups.index');
+        Route::post('/backups', 'store')->middleware('throttle:5,1')->name('backups.store');
+        Route::get('/backups/{file}', 'download')->name('backups.download');
+        Route::delete('/backups/{file}', 'destroy')->name('backups.destroy');
+    });
 
     require __DIR__.'/modules.php';
 });

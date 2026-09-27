@@ -40,11 +40,18 @@ return [
      | endpoint paths are configurable here in case the provider changes them.
      */
     'fastlipa' => [
-        'initiate_path' => env('FASTLIPA_INITIATE_PATH', '/api/create-transaction'),
-        'status_path' => env('FASTLIPA_STATUS_PATH', '/api/status-transaction'),
+        // https://api.fastlipa.com/v1/transaction/create and /v1/transaction/status?tranid=…
+        'initiate_path' => env('FASTLIPA_INITIATE_PATH', '/v1/transaction/create'),
+        'status_path' => env('FASTLIPA_STATUS_PATH', '/v1/transaction/status'),
+        // Send our callback URL with each request (FastLipa also supports a dashboard-wide webhook).
+        'send_webhook_url' => (bool) env('FASTLIPA_SEND_WEBHOOK_URL', true),
+        // Only checked when FastLipa sends this header; otherwise every callback is verified by a status query.
         'signature_header' => env('FASTLIPA_SIGNATURE_HEADER', 'X-FastLipa-Signature'),
         'timeout' => (int) env('FASTLIPA_TIMEOUT', 20),
         'allowed_ips' => array_filter(explode(',', (string) env('FASTLIPA_ALLOWED_IPS', ''))),
+        // FastLipa can report "failed" and later "completed" for the same transaction.
+        // Failed payments keep being re-checked for this many minutes.
+        'recheck_failed_minutes' => (int) env('FASTLIPA_RECHECK_FAILED_MINUTES', 30),
     ],
 
     'beem' => [

@@ -8,6 +8,7 @@ use App\Models\ProductStock;
 use App\Support\BranchContext;
 use App\Support\Money;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\DB;
 
 class StockLevelsTable extends DataTable
 {
@@ -83,7 +84,7 @@ class StockLevelsTable extends DataTable
     {
         $totals = [];
         $q = (clone $this->filteredQuery())->reorder();
-        $sumCost = (clone $q)->toBase()->selectRaw('SUM(product_stocks.quantity * products.cost_price) as c, SUM(product_stocks.quantity * products.retail_price) as r')->first();
+        $sumCost = (clone $q)->toBase()->select(DB::raw('SUM(product_stocks.quantity * products.cost_price) as c, SUM(product_stocks.quantity * products.retail_price) as r'))->first();
         foreach (collect($this->columns())->filter(fn ($c) => $c->visible && ! $c->onlyExport)->values() as $i => $column) {
             if ($column->field === 'cost_value') {
                 $totals[$i] = money(Money::round($sumCost->c ?? 0));

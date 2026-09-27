@@ -37,9 +37,9 @@ class StockAdjustmentService
                     'direction' => $item['direction'] ?? $reason->direction() ?? 'in',
                     'quantity' => $item['quantity'],
                     'unit_cost' => $item['unit_cost'] ?? $product->cost_price,
-                    'batch_no' => $item['batch_no'] ?? null,
-                    'expiry_date' => $item['expiry_date'] ?? null,
-                    'note' => $item['note'] ?? null,
+                    'batch_no' => ($item['batch_no'] ?? null) ?: null,
+                    'expiry_date' => ($item['expiry_date'] ?? null) ?: null,
+                    'note' => ($item['note'] ?? null) ?: null,
                 ]);
             }
 

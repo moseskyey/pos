@@ -7,6 +7,7 @@ use App\Enums\PaymentMethod;
 use App\Exceptions\BusinessRuleException;
 use App\Models\PaymentIntent;
 use App\Models\User;
+use App\Notifications\SystemAlert;
 use App\Support\Integrations\PaymentRequest;
 use App\Support\Integrations\PaymentResult;
 use App\Support\Money;
@@ -71,10 +72,18 @@ class PaymentService
         });
     }
 
-    /** Apply a verified result (callback or status query). Idempotent. */
+    /**
+     * Apply a verified provider result (status query). Idempotent.
+     *
+     * A provider "failed" is not trusted as final: FastLipa has been seen to
+     * report failed and then completed for the same transaction a few minutes
+     * later. Such intents stay re-checkable until recheck_until; a completion
+     * that arrives in that window is accepted and flagged as late.
+     */
     public function apply(PaymentIntent $intent, PaymentResult $result, array $payload = []): PaymentIntent
     {
-        return DB::transaction(function () use ($intent, $result, $payload) {
+        $late = false;
+        $intent = DB::transaction(function () use ($intent, $result, $payload, &$late) {
             $intent = PaymentIntent::withoutGlobalScopes()->lockForUpdate()->findOrFail($intent->id);
             if ($intent->isTerminal()) {
                 return $intent;
@@ -84,29 +93,57 @@ class PaymentService
                 PaymentResult::FAILED => PaymentIntent::FAILED,
                 default => null,
             };
-            if ($next === PaymentIntent::COMPLETED && $result->amount !== null && Money::lt($result->amount, $intent->amount)) {
+            $underpaid = $next === PaymentIntent::COMPLETED && $result->amount !== null && is_numeric($result->amount)
+                && Money::lt($result->amount, $intent->amount);
+            if ($underpaid) {
                 $next = PaymentIntent::FAILED;
                 $result->message = __('Amount paid (:a) is less than requested.', ['a' => money($result->amount)]);
             }
+
             $intent->provider_reference ??= $result->providerReference;
             $intent->payload = array_merge($intent->payload ?? [], ['last' => $payload ?: $result->raw]);
             if ($result->message) {
                 $intent->message = $result->message;
             }
-            if ($next && $intent->canTransitionTo($next)) {
-                $intent->status = $next;
-                $intent->completed_at = $next === PaymentIntent::COMPLETED ? now() : null;
+
+            if ($next === PaymentIntent::COMPLETED && $intent->canTransitionTo($next)) {
+                $late = $intent->status === PaymentIntent::FAILED;
+                $intent->status = PaymentIntent::COMPLETED;
+                $intent->completed_at = now();
+                $intent->recheck_until = null;
+                $intent->late_completed_at = $late ? now() : null;
+                if ($late) {
+                    $intent->message = __('Confirmed after it was reported failed.');
+                }
+            } elseif ($next === PaymentIntent::FAILED && $intent->status !== PaymentIntent::FAILED && $intent->canTransitionTo($next)) {
+                $intent->status = PaymentIntent::FAILED;
+                // Underpayment is our decision and final; a provider failure may still flip.
+                $intent->recheck_until = $underpaid || ! $intent->provider_reference
+                    ? null : now()->addMinutes(config('services.fastlipa.recheck_failed_minutes', 30));
             }
             $intent->save();
 
             return $intent;
         });
+
+        if ($late) {
+            $this->alertLateCompletion($intent);
+        }
+
+        return $intent;
     }
 
     /** Query the provider for the current status. */
-    public function refresh(PaymentIntent $intent): PaymentIntent
+    public function refresh(PaymentIntent $intent, ?string $providerReference = null): PaymentIntent
     {
-        if ($intent->isTerminal() || ! $intent->provider_reference) {
+        if ($intent->isTerminal()) {
+            return $intent;
+        }
+        if (! $intent->provider_reference && $providerReference) {
+            PaymentIntent::withoutGlobalScopes()->whereKey($intent->id)->whereNull('provider_reference')->update(['provider_reference' => $providerReference]);
+            $intent->provider_reference = $providerReference;
+        }
+        if (! $intent->provider_reference) {
             return $intent;
         }
         PaymentIntent::withoutGlobalScopes()->whereKey($intent->id)->increment('status_checks');
@@ -115,12 +152,17 @@ class PaymentService
         return $this->apply($intent, $result);
     }
 
-    /** Sweep stuck intents (scheduled). */
+    /** Sweep stuck and recently failed intents (scheduled every minute). */
     public function reconcile(int $olderThanMinutes = 2, int $maxChecks = 30): int
     {
         $count = 0;
-        PaymentIntent::withoutGlobalScopes()->whereIn('status', [PaymentIntent::PENDING, PaymentIntent::PROCESSING])
-            ->where('created_at', '<=', now()->subMinutes($olderThanMinutes))->where('status_checks', '<', $maxChecks)
+        PaymentIntent::withoutGlobalScopes()
+            ->where(fn ($q) => $q
+                ->where(fn ($w) => $w->whereIn('status', [PaymentIntent::PENDING, PaymentIntent::PROCESSING])
+                    ->where('created_at', '<=', now()->subMinutes($olderThanMinutes)))
+                ->orWhere(fn ($w) => $w->where('status', PaymentIntent::FAILED)->where('recheck_until', '>', now())
+                    ->whereNotNull('provider_reference')))
+            ->where('status_checks', '<', $maxChecks)
             ->orderBy('id')->limit(100)->get()
             ->each(function (PaymentIntent $intent) use (&$count) {
                 if (! $intent->provider_reference && $intent->created_at->lt(now()->subMinutes(30))) {
@@ -132,6 +174,30 @@ class PaymentService
             });
 
         return $count;
+    }
+
+    /**
+     * Money arrived after the till was told the payment failed. If no sale
+     * used it, a manager must either attach it or refund the customer.
+     */
+    protected function alertLateCompletion(PaymentIntent $intent): void
+    {
+        if ($intent->sale_id) {
+            return;
+        }
+        $method = PaymentMethod::from($intent->method)->label();
+        $alert = new SystemAlert(
+            __('Late :m payment received', ['m' => $method]),
+            __(':amount from :phone (ref :ref) was confirmed after it was reported failed and is not attached to a sale. Check with the customer: complete their sale or refund them.', [
+                'amount' => money($intent->amount), 'phone' => PhoneNumber::display($intent->phone), 'ref' => $intent->provider_reference ?? $intent->reference,
+            ]),
+            null, 'bi-phone-vibrate', 'warning', true,
+        );
+        $cashier = User::find($intent->user_id);
+        app(AlertService::class)->notify($intent->branch_id, 'sales.void', $alert, $cashier);
+        $cashier?->notify($alert);
+        activity('payments')->performedOn($intent)->withProperties(['reference' => $intent->reference, 'provider_reference' => $intent->provider_reference, 'amount' => $intent->amount])
+            ->log('Late mobile money payment');
     }
 
     /**

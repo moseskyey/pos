@@ -204,7 +204,7 @@ class StockService
 
         return $batch ?? ProductBatch::withoutGlobalScopes()->create([
             'branch_id' => $branchId, 'product_id' => $product->id, 'batch_no' => $batchNo,
-            'expiry_date' => $expiryDate, 'quantity' => 0, 'cost_price' => $unitCost,
+            'expiry_date' => $expiryDate ?: null, 'quantity' => 0, 'cost_price' => $unitCost,
         ]);
     }
 

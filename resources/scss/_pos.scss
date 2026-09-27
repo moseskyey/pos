@@ -102,3 +102,13 @@
 
 .pin-pad { display: grid; grid-template-columns: repeat(3, 1fr); gap: .5rem;
     .btn { height: 56px; font-size: 1.25rem; font-weight: 600; } }
+
+// Idle lock screen ------------------------------------------------------------
+.pos-lock-screen {
+    position: fixed;
+    inset: 0;
+    z-index: 2000;
+    place-content: center;
+    background: rgba(15, 23, 42, .78);
+    backdrop-filter: blur(8px);
+}

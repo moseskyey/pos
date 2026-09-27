@@ -127,13 +127,13 @@ class PurchaseService
                 $source = $items[$i];
                 $receipt->items()->create($line + [
                     'purchase_order_item_id' => $source['purchase_order_item_id'] ?? null,
-                    'batch_no' => $source['batch_no'] ?? null,
-                    'expiry_date' => $source['expiry_date'] ?? null,
+                    'batch_no' => ($source['batch_no'] ?? null) ?: null,
+                    'expiry_date' => ($source['expiry_date'] ?? null) ?: null,
                 ]);
 
                 $this->updateCost($product, $line['quantity'], $line['unit_cost'], $user, $receipt->number);
                 $this->stock->receive($branchId, $product, $line['quantity'], MovementType::Purchase, $receipt, $line['unit_cost'],
-                    ($source['batch_no'] ?? null) ?: ($product->track_batches ? $receipt->number : null), $source['expiry_date'] ?? null, $supplier->name);
+                    ($source['batch_no'] ?? null) ?: ($product->track_batches ? $receipt->number : null), ($source['expiry_date'] ?? null) ?: null, $supplier->name);
 
                 if (! empty($source['purchase_order_item_id']) && $order) {
                     $poItem = $order->items()->find($source['purchase_order_item_id']);

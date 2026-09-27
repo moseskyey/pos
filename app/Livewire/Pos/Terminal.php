@@ -611,7 +611,7 @@ class Terminal extends Component
         }
         $phone = $payment['phone'] ?? null ?: $this->customer?->phone;
         try {
-            $intent = $payments->initiate($this->shift->branch_id, auth()->user(), $method, (string) $phone, $payment['amount'], $this->idempotencyKey.'-'.$index.'-'.Str::lower(Str::random(4)));
+            $intent = $payments->initiate($this->shift->branch_id, auth()->user(), $method, (string) $phone, $payment['amount'], 'DP-'.Str::upper(Str::random(12)));
         } catch (BusinessRuleException $e) {
             $this->addError("payments.$index.phone", $e->getMessage());
 
@@ -619,6 +619,7 @@ class Terminal extends Component
         }
         $this->payments[$index]['intent_reference'] = $intent->reference;
         $this->payments[$index]['intent_status'] = $intent->status;
+        $this->payments[$index]['intent_recheck'] = $intent->recheckable();
         $this->dispatch('toast', message: $intent->status === 'failed' ? ($intent->message ?: __('Payment request failed.'))
             : __('Payment request sent to :p. Ask the customer to enter their PIN.', ['p' => PhoneNumber::display($intent->phone)]), type: $intent->status === 'failed' ? 'error' : 'info');
     }
@@ -627,28 +628,40 @@ class Terminal extends Component
     {
         $ref = $this->payments[$index]['intent_reference'] ?? null;
         $intent = $ref ? PaymentIntent::query()->where('reference', $ref)->first() : null;
-        if (! $intent) {
-            return;
-        }
-        $intent = $payments->refresh($intent);
-        $this->payments[$index]['intent_status'] = $intent->status;
-        if ($intent->status === 'completed') {
-            $this->payments[$index]['amount'] = (float) $intent->amount;
-            $this->dispatch('toast', message: __(':m payment confirmed.', ['m' => PaymentMethod::from($intent->method)->label()]));
+        if ($intent) {
+            $this->syncIntent($index, $payments->refresh($intent));
         }
     }
 
-    /** Poll pending pushes (called by wire:poll while a push is pending). */
+    /**
+     * Poll pushes that can still change: pending ones, and provider-reported
+     * failures that FastLipa may yet confirm (called by wire:poll).
+     */
     public function pollStk(PaymentService $payments): void
     {
         foreach ($this->payments as $i => $p) {
-            if (! empty($p['intent_reference']) && in_array($p['intent_status'] ?? null, ['pending', 'processing'], true)) {
-                $intent = PaymentIntent::query()->where('reference', $p['intent_reference'])->first();
-                if ($intent && ! $intent->isTerminal() && $intent->updated_at->lt(now()->subSeconds(8))) {
-                    $intent = $payments->refresh($intent);
-                }
-                $this->payments[$i]['intent_status'] = $intent?->status;
+            $watching = in_array($p['intent_status'] ?? null, ['pending', 'processing'], true) || ! empty($p['intent_recheck']);
+            if (empty($p['intent_reference']) || ! $watching) {
+                continue;
             }
+            $intent = PaymentIntent::query()->where('reference', $p['intent_reference'])->first();
+            if ($intent && ! $intent->isTerminal() && $intent->updated_at->lt(now()->subSeconds(8))) {
+                $intent = $payments->refresh($intent);
+            }
+            if ($intent) {
+                $this->syncIntent($i, $intent);
+            }
+        }
+    }
+
+    protected function syncIntent(int $index, PaymentIntent $intent): void
+    {
+        $was = $this->payments[$index]['intent_status'] ?? null;
+        $this->payments[$index]['intent_status'] = $intent->status;
+        $this->payments[$index]['intent_recheck'] = $intent->recheckable();
+        if ($intent->status === PaymentIntent::COMPLETED && $was !== PaymentIntent::COMPLETED) {
+            $this->payments[$index]['amount'] = (float) $intent->amount;
+            $this->dispatch('toast', message: __(':m payment confirmed.', ['m' => PaymentMethod::from($intent->method)->label()]), type: 'success');
         }
     }
 
@@ -660,6 +673,11 @@ class Terminal extends Component
 
     public function checkout(SaleService $sales, string $status = 'completed'): void
     {
+        if (session('pos_locked')) {
+            $this->dispatch('toast', message: __('Terminal locked. Enter your PIN to continue.'), type: 'error');
+
+            return;
+        }
         if (! $this->shift) {
             $this->dispatch('toast', message: __('Open a shift before selling.'), type: 'error');
 
