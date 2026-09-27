@@ -1,0 +1,90 @@
+// ---------------------------------------------------------------------------
+// DukaPOS theme tokens (override Bootstrap before import)
+// ---------------------------------------------------------------------------
+$primary: #4F46E5;
+$success: #16A34A;
+$danger: #DC2626;
+$warning: #F59E0B;
+$info: #0EA5E9;
+$secondary: #64748B;
+$dark: #111827;
+$light: #F5F7FB;
+
+$body-bg: #F5F7FB;
+$body-color: #111827;
+$body-secondary-color: #6B7280;
+$text-muted: #6B7280;
+$border-color: #E5E7EB;
+
+$body-bg-dark: #0B1120;
+$body-color-dark: #E5E7EB;
+$border-color-dark: #1F2937;
+
+$font-family-sans-serif: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+$font-size-base: .9375rem;
+$font-size-sm: .8125rem;
+$headings-font-weight: 700;
+$headings-color: #111827;
+$line-height-base: 1.55;
+
+$border-radius: .75rem;
+$border-radius-sm: .5rem;
+$border-radius-lg: 1rem;
+$border-radius-xl: 1.25rem;
+$border-radius-pill: 50rem;
+
+$box-shadow-sm: 0 1px 2px rgba(16, 24, 40, .06);
+$box-shadow: 0 1px 3px rgba(16, 24, 40, .08), 0 1px 2px rgba(16, 24, 40, .04);
+$box-shadow-lg: 0 12px 32px -8px rgba(16, 24, 40, .18);
+
+$card-border-color: #E5E7EB;
+$card-cap-bg: transparent;
+$card-spacer-y: 1.25rem;
+$card-spacer-x: 1.25rem;
+$card-box-shadow: $box-shadow;
+
+$input-bg: #fff;
+$input-border-color: #D1D5DB;
+$input-focus-border-color: #818CF8;
+$input-focus-box-shadow: 0 0 0 .2rem rgba(79, 70, 229, .15);
+$input-btn-padding-y: .5rem;
+$input-btn-padding-x: .9rem;
+$input-placeholder-color: #9CA3AF;
+$form-label-font-weight: 500;
+$form-label-font-size: .875rem;
+
+$btn-font-weight: 500;
+$btn-box-shadow: none;
+$btn-focus-box-shadow: 0 0 0 .2rem rgba(79, 70, 229, .25);
+
+$table-cell-padding-y: .75rem;
+$table-cell-padding-x: 1rem;
+$table-th-font-weight: 600;
+$table-hover-bg-factor: .03;
+
+$dropdown-border-color: #E5E7EB;
+$dropdown-box-shadow: $box-shadow-lg;
+$dropdown-link-active-bg: #EEF2FF;
+$dropdown-link-active-color: $primary;
+$dropdown-padding-y: .375rem;
+$dropdown-item-padding-y: .45rem;
+
+$modal-content-border-radius: 1rem;
+$modal-backdrop-opacity: .45;
+$modal-header-border-color: #E5E7EB;
+
+$nav-tabs-link-active-color: $primary;
+$nav-link-font-weight: 500;
+
+$badge-font-weight: 600;
+$badge-padding-y: .38em;
+$badge-padding-x: .7em;
+
+$toast-max-width: 380px;
+
+$enable-shadows: false;
+$enable-negative-margins: true;
+
+$sidebar-width: 260px;
+$sidebar-collapsed-width: 72px;
+$navbar-height: 64px;
