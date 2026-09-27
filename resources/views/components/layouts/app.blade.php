@@ -18,6 +18,12 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
+    @auth
+        <meta name="dp-user" content="{{ auth()->id() }}">
+        <meta name="dp-offline-ping" content="{{ route('pos.offline.ping') }}">
+        <meta name="dp-offline-sync" content="{{ route('pos.offline.sync') }}">
+        @if ($pos)<meta name="dp-sw" content="{{ asset('sw.js') }}">@endif
+    @endauth
     <title>{{ $title ? $title.' · ' : '' }}{{ setting('business.name', config('app.name')) }}</title>
     <link rel="icon" href="{{ asset('favicon.svg') }}" type="image/svg+xml">
     <script>

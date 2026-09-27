@@ -63,6 +63,9 @@
     <table>
         @foreach ($sale->payments as $p)
             <tr><td>{{ $p->method->label() }}{{ $p->reference ? ' ('.$p->reference.')' : '' }}</td><td class="right">{{ money(data_get($p->meta, 'tendered', $p->amount), false) }}</td></tr>
+            @if (data_get($p->meta, 'currency') === 'USD')
+                <tr><td colspan="2" class="small">US$ {{ number_format((float) $p->meta['foreign_amount'], 2) }} @ {{ money($p->meta['rate'], false) }}</td></tr>
+            @endif
         @endforeach
         @if ($sale->change_due > 0)<tr class="bold"><td>{{ __('Change') }}</td><td class="right">{{ money($sale->change_due, false) }}</td></tr>@endif
         @if ($sale->balance_due > 0)<tr class="bold"><td>{{ __('Balance due') }}</td><td class="right">{{ money($sale->balance_due, false) }}</td></tr>@endif

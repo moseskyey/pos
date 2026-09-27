@@ -28,6 +28,7 @@ class SettingsRequest extends FormRequest
                 'currency_symbol' => ['required', 'string', 'max:6'],
                 'currency_decimals' => ['required', 'integer', 'between:0,2'],
                 'currency_thousands_separator' => ['nullable', 'string', 'max:1'],
+                'currency_usd_rate' => ['required', 'numeric', 'gt:0', 'max:1000000'],
                 'tax_vat_rate' => ['required', 'numeric', 'between:0,100'],
                 'tax_prices_include_vat' => ['boolean'],
             ],
@@ -38,6 +39,8 @@ class SettingsRequest extends FormRequest
                 'receipt_show_logo' => ['boolean'],
                 'receipt_auto_print' => ['boolean'],
                 'receipt_show_qr' => ['boolean'],
+                'receipt_print_mode' => ['required', Rule::in(['browser', 'escpos'])],
+                'receipt_drawer_kick' => ['boolean'],
             ],
             'pos' => [
                 'pos_negative_stock' => ['required', Rule::in(['block', 'warn', 'allow'])],
@@ -54,7 +57,7 @@ class SettingsRequest extends FormRequest
                 'inventory_expiry_alert_days' => ['required', 'integer', 'between:1,365'],
             ],
             'payments' => [
-                'payments_cash' => ['boolean'], 'payments_mpesa' => ['boolean'], 'payments_tigopesa' => ['boolean'],
+                'payments_cash' => ['boolean'], 'payments_cash_usd' => ['boolean'], 'payments_mpesa' => ['boolean'], 'payments_tigopesa' => ['boolean'],
                 'payments_airtel' => ['boolean'], 'payments_halopesa' => ['boolean'], 'payments_card' => ['boolean'],
                 'payments_bank' => ['boolean'], 'payments_credit' => ['boolean'], 'payments_store_credit' => ['boolean'],
                 'payments_gateway' => ['required', Rule::in(['manual', 'fastlipa'])],

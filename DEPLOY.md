@@ -132,6 +132,12 @@ server {
     location = /favicon.ico { access_log off; log_not_found off; }
     location = /robots.txt  { access_log off; log_not_found off; }
 
+    # The service worker must always be re-checked so till updates reach every device.
+    location = /sw.js {
+        add_header Cache-Control "no-cache";
+        access_log off;
+    }
+
     location /build/ {
         expires 1y;
         add_header Cache-Control "public, immutable";
@@ -252,7 +258,25 @@ mysql -u dukapos -p dukapos < /tmp/restore/db-dumps/mysql-dukapos.sql
 
 Callbacks are logged in the `payment_callbacks` table. To replay one: `php artisan payments:replay-callback {id}`.
 
-## 10. Updating
+## 10. Offline till, receipt printers and US dollars
+
+- **HTTPS is required** for the offline till (service workers) and for direct printing (WebUSB/WebSerial).
+  Section 5 covers this. On a local network without a domain, use the browser on the same machine through
+  `http://localhost`, which browsers treat as secure.
+- **Offline till:** each till must open the POS once while online, which downloads the product list. The list
+  refreshes every time the till is online. If the connection drops, the POS shows **Open offline till**.
+  Sales made offline sync by themselves when the connection returns. Managers can find them under
+  **Sales → filter "Offline sales" → Needs review**.
+- **Receipt printer:**
+  1. Set Settings → Receipts → Printing to *Direct to thermal printer (ESC/POS)*.
+  2. On each till, in Chrome or Edge, click **Connect printer** on the POS screen and choose the USB or serial printer.
+  3. The cash drawer must be plugged into the printer's RJ11 drawer port.
+  4. On Windows, USB printers that already use a vendor driver may need the WinUSB driver (Zadig) before
+     WebUSB can reach them. Serial/COM printers work as they are.
+- **US dollars:** set the rate under Settings → Currency & tax, then turn on *Cash (USD)* under Payment methods.
+  Update the rate whenever it changes; each payment stores the rate it used.
+
+## 11. Updating
 
 Use `deploy.sh` from the project root to update the app. It enables maintenance mode, pulls the code, installs
 dependencies, migrates, builds assets, rebuilds the caches and restarts the queue workers:
@@ -262,7 +286,7 @@ cd /var/www/dukapos && ./deploy.sh            # deploys the current branch
 ./deploy.sh main                              # or a specific branch
 ```
 
-## 11. Hardening checklist
+## 12. Hardening checklist
 
 - `APP_DEBUG=false` and `APP_ENV=production`. Lazy-loading guards and debug output are then off.
 - Keep `.env` readable only by the deploy user and `www-data`: `chmod 640 .env`.

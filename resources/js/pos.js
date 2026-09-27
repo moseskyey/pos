@@ -81,11 +81,24 @@ document.addEventListener('alpine:init', () => {
         afterSale(detail) {
             try { localStorage.removeItem(this.storageKey); } catch (e) { /* ignore */ }
             const data = Array.isArray(detail) ? detail[0] : detail;
-            if (data && data.autoPrint) this.printReceipt(data.receipt);
+            if (data && data.escpos) {
+                // Direct printing: print (and pop the drawer) or just pop the drawer for cash sales.
+                const url = data.escpos + (data.escpos.includes('?') ? '&' : '?') + 'drawer=1' + (data.autoPrint ? '' : '&drawer_only=1');
+                window.dpPrinter.print(url).catch((e) => {
+                    window.dpToast?.(e.message, 'error');
+                    if (data.autoPrint) this.printReceipt(data.receipt);
+                });
+            } else if (data && data.autoPrint) {
+                this.printReceipt(data.receipt);
+            }
             this.$nextTick(() => this.$refs.newSale?.focus());
         },
 
-        printReceipt(url) {
+        printReceipt(url, escpos = null) {
+            if (escpos) {
+                window.dpPrinter.print(escpos).catch((e) => { window.dpToast?.(e.message, 'error'); this.printReceipt(url); });
+                return;
+            }
             const frame = this.$refs.printFrame;
             if (!frame) { window.open(url, '_blank'); return; }
             frame.onload = () => { try { frame.contentWindow.focus(); frame.contentWindow.print(); } catch (e) { window.open(url, '_blank'); } };

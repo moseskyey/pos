@@ -93,6 +93,16 @@ To use MySQL 8 / MariaDB instead of SQLite, set `DB_CONNECTION=mysql` and the `D
 - Line and cart discounts, split payments, change calculation, and credit sales within limits.
 - Mobile money STK push, and an idle lock screen that needs a PIN to unlock.
 - Receipts on 58/80 mm thermal paper with a QR verification code, plus A4 tax invoices and delivery notes.
+- Direct printing to USB or serial thermal printers (ESC/POS) from Chrome or Edge, with the cash drawer
+  opening automatically on cash sales. "No sale" drawer openings are logged.
+- US dollar cash at a configurable rate. Change is given in shillings, and shift reports show the dollars expected in the drawer.
+- WhatsApp buttons for receipts, invoices, quotations and customer statements. The customer receives a link
+  to a PDF that expires after 30 days.
+- **Offline till:** if the internet drops, cashiers keep selling from the offline till.
+  - The page works without a connection, and sales are stored on the device.
+  - Sales sync automatically when the connection returns, dated to when they happened.
+  - A sale is never recorded twice.
+  - Anything that would normally have needed a manager is flagged for review.
 - The cart is backed up locally in the browser.
 
 **Sales & customers.**
@@ -107,7 +117,8 @@ To use MySQL 8 / MariaDB instead of SQLite, set `DB_CONNECTION=mysql` and the `D
   - store credit
 
 **Purchases & expenses.**
-- Suppliers and purchase orders (PDF).
+- Suppliers and purchase orders (PDF), which can be emailed to the supplier from the order page.
+- Supplier statements as PDF.
 - Goods received notes that update the moving average cost.
 - Supplier bills, payments and aging.
 - Returns to supplier.
@@ -130,6 +141,7 @@ To use MySQL 8 / MariaDB instead of SQLite, set `DB_CONNECTION=mysql` and the `D
 - A TRA VFD/EFD `FiscalDevice` extension point.
 - Backups through spatie/laravel-backup: nightly database backups, plus download and delete from the UI.
 - Security headers, rate-limited logins and PINs, and encrypted API keys.
+- Policies authorise every record by role and branch, and Form Requests validate every controller input.
 - Lazy loading is blocked outside production.
 
 ## Configuration
@@ -143,6 +155,9 @@ document number prefixes.
 | FastLipa API key, URL, webhook secret | Settings → Payment methods (stored encrypted). Callback URL: `https://your-domain/api/payments/callback/fastlipa` |
 | Beem SMS key, secret, sender ID | Settings → SMS, alerts & fiscal |
 | Backups (disk, retention, alert email) | `.env`: `BACKUP_DISKS`, `BACKUP_KEEP_DAYS`, `BACKUP_NOTIFY_EMAIL` |
+| USD cash payments | Settings → Currency & tax (rate), Settings → Payment methods (turn on "Cash (USD)") |
+| Direct receipt printing / cash drawer | Settings → Receipts → Printing: *Direct to thermal printer*. Then use **Connect printer** on the POS screen once per computer (Chrome or Edge) |
+| Offline till | Works automatically over HTTPS. Open the POS once while online so the device downloads the product list |
 | Scheduled jobs | `routes/console.php`. Run `php artisan schedule:run` every minute from cron |
 
 ## Tests
@@ -151,8 +166,12 @@ document number prefixes.
 php artisan test                     # SQLite in memory
 ```
 
-The suite has about 175 Pest tests. They cover money math, checkout, stock, purchasing, reports and payment
-callbacks, and include a smoke test that renders every page against the full demo data.
+The suite has about 200 Pest tests. They cover:
+- money math, checkout, stock and purchasing
+- reports and payment callbacks
+- offline sync, ESC/POS output and authorisation
+
+A smoke test renders every page against the full demo data. CI runs the suite on SQLite and MySQL 8.
 
 ## Deployment
 

@@ -9,7 +9,7 @@ class ActivityController extends Controller
 {
     public function index(Request $request): View
     {
-        abort_unless($request->user()->can('activity.view'), 403);
+        $this->authorize('activity.view');
 
         return view('activity.index');
     }

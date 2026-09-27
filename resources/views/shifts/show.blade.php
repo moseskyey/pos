@@ -104,6 +104,9 @@
                     @csrf
                     <x-card :title="$mine ? __('Close shift') : __('Force-close shift')" icon="bi-lock">
                         <p class="small text-body-secondary">{{ __('Count the cash in the drawer. Use the denomination counter or enter the total.') }}</p>
+                        @if (\App\Support\Money::isPositive($summary['expected_usd'] ?? 0))
+                            <div class="alert alert-info small py-2"><i class="bi bi-currency-dollar"></i> {{ __('Count shillings only here. The drawer should also hold US$ :usd from dollar payments.', ['usd' => number_format((float) $summary['expected_usd'], 2)]) }}</div>
+                        @endif
                         <div class="row g-2 mb-3">
                             @foreach ($denoms as $d)
                                 <div class="col-6">

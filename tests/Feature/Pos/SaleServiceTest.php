@@ -146,3 +146,30 @@ it('reconciles cash on shift close', function () {
     $closed = $shifts->close($this->shift, $this->cashier, 51500, [10000 => 5, 1000 => 1, 500 => 1]);
     expect($closed->over_short)->toEqual('-500.00')->and($closed->status)->toBe('closed');
 });
+
+it('accepts US dollar cash at the configured rate and gives change in shillings', function () {
+    setting()->set(['payments.cash_usd' => true, 'currency.usd_rate' => 2600]);
+    $sale = $this->sales->checkout(['lines' => [['product_id' => $this->product->id, 'qty' => 5]]],
+        [['method' => 'cash_usd', 'foreign_amount' => 2, 'amount' => 999999]], $this->cashier, $this->shift, (string) Str::uuid());
+
+    // 5 × 1,000 = 5,000 due; US$2 × 2,600 = 5,200 tendered (client amount ignored); change TSh 200.
+    $payment = $sale->payments->first();
+    expect($sale->total)->toEqual('5000.00')
+        ->and($sale->change_due)->toEqual('200.00')
+        ->and($payment->amount)->toEqual('5000.00')
+        ->and($payment->meta['foreign_amount'])->toBe('2.00')
+        ->and($payment->meta['rate'])->toBe('2600.00');
+
+    $summary = app(ShiftService::class)->summary($this->shift->fresh());
+    expect($summary['expected_usd'])->toBe('2.00')
+        ->and($summary['usd_change'])->toBe('200.00')
+        ->and($summary['expected_cash'])->toBe('49800.00');
+    $this->actingAs($this->manager)->get(route('shifts.report', [$this->shift, 'x']))->assertOk()->assertSee('US$ 2.00');
+});
+
+it('rejects dollar payments when disabled', function () {
+    setting()->set(['payments.cash_usd' => false]);
+    expect(fn () => $this->sales->checkout(['lines' => [['product_id' => $this->product->id, 'qty' => 1]]],
+        [['method' => 'cash_usd', 'foreign_amount' => 10]], $this->cashier, $this->shift, (string) Str::uuid()))
+        ->toThrow(BusinessRuleException::class);
+});

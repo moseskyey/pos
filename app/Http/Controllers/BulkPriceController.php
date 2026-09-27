@@ -2,12 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\BulkPriceRequest;
 use App\Models\Brand;
 use App\Models\Category;
 use App\Services\BulkPriceService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class BulkPriceController extends Controller
@@ -16,7 +16,7 @@ class BulkPriceController extends Controller
 
     public function create(Request $request): View
     {
-        abort_unless($request->user()->can('products.edit_price'), 403);
+        $this->authorize('products.edit_price');
         $filters = $request->only(['category_id', 'brand_id', 'field', 'mode', 'value', 'rounding']);
         $sample = collect();
         $count = 0;
@@ -40,18 +40,10 @@ class BulkPriceController extends Controller
         ]);
     }
 
-    public function store(Request $request): RedirectResponse
+    public function store(BulkPriceRequest $request): RedirectResponse
     {
-        abort_unless($request->user()->can('products.edit_price'), 403);
-        $data = $request->validate([
-            'category_id' => ['nullable', 'exists:categories,id'],
-            'brand_id' => ['nullable', 'exists:brands,id'],
-            'field' => ['required', Rule::in(['retail_price', 'wholesale_price', 'both'])],
-            'mode' => ['required', Rule::in(['percent', 'fixed', 'set'])],
-            'value' => ['required', 'numeric', 'between:-1000000000,1000000000'],
-            'rounding' => ['nullable', Rule::in(['0', '50', '100'])],
-            'reason' => ['nullable', 'string', 'max:255'],
-        ]);
+        $this->authorize('products.edit_price');
+        $data = $request->validated();
 
         if (empty($data['category_id']) && empty($data['brand_id']) && ! $request->boolean('confirm_all')) {
             return back()->withInput()->with('error', __('Select a category or brand, or confirm updating all products.'));

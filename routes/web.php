@@ -15,6 +15,7 @@ use App\Http\Controllers\ReceiptController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\SearchController;
 use App\Http\Controllers\SettingsController;
+use App\Http\Controllers\ShareController;
 use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
 
@@ -32,6 +33,10 @@ Route::middleware('guest')->group(function () {
 
 Route::post('/preferences/locale', [ProfileController::class, 'locale'])->name('preferences.locale');
 Route::get('/verify/{number}', [ReceiptController::class, 'verify'])->name('receipts.verify');
+Route::middleware(['signed', 'throttle:30,1'])->group(function () {
+    Route::get('/share/invoice/{sale}', [ShareController::class, 'invoice'])->whereNumber('sale')->name('share.invoice');
+    Route::get('/share/statement/{customer}', [ShareController::class, 'statement'])->name('share.statement');
+});
 
 Route::middleware('auth')->group(function () {
     Route::post('/logout', [LoginController::class, 'destroy'])->name('logout');

@@ -47,7 +47,13 @@
         <tr><td>{{ __('Cash out') }}</td><td class="right">-{{ money($summary['cash_out'], false) }}</td></tr>
         <tr><td>{{ __('Cash refunds') }}</td><td class="right">-{{ money($summary['returns']['cash'], false) }}</td></tr>
         <tr><td>{{ __('Expenses from drawer') }}</td><td class="right">-{{ money($summary['expense_cash'] ?? 0, false) }}</td></tr>
+        @if (\App\Support\Money::isPositive($summary['usd_change'] ?? 0))
+            <tr><td>{{ __('Change given for USD') }}</td><td class="right">-{{ money($summary['usd_change'], false) }}</td></tr>
+        @endif
         <tr class="bold"><td>{{ __('Expected cash') }}</td><td class="right">{{ money($summary['expected_cash'], false) }}</td></tr>
+        @if (\App\Support\Money::isPositive($summary['expected_usd'] ?? 0))
+            <tr class="bold"><td>{{ __('US dollars in drawer') }}</td><td class="right">US$ {{ number_format((float) $summary['expected_usd'], 2) }}</td></tr>
+        @endif
         @if ($type === 'z')
             <tr class="bold"><td>{{ __('Counted cash') }}</td><td class="right">{{ money($shift->counted_cash, false) }}</td></tr>
             <tr class="bold big"><td>{{ __('Over / short') }}</td><td class="right">{{ money($shift->over_short, false) }}</td></tr>

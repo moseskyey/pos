@@ -2,6 +2,18 @@
      x-on:scan-ok.window="dpBeep(true)" x-on:scan-fail.window="dpBeep(false)"
      x-on:focus-search.window="focusSearch()" x-on:sale-completed.window="afterSale($event.detail)">
 
+    <div wire:ignore x-data="offlineStatus({ userId: {{ auth()->id() }}, offlineUrl: @js(route('pos.offline')) })" class="no-print">
+        <div class="alert alert-danger d-flex align-items-center gap-2 m-2 mb-0 py-2" x-show="!online" x-cloak role="alert">
+            <i class="bi bi-wifi-off fs-5"></i>
+            <span class="me-auto">{{ __('Connection lost. Keep selling in the offline till; sales sync when the connection is back.') }}</span>
+            <a :href="offlineUrl" class="btn btn-sm btn-light fw-semibold">{{ __('Open offline till') }}</a>
+        </div>
+        <div class="alert alert-warning d-flex align-items-center gap-2 m-2 mb-0 py-2" x-show="online && pending" x-cloak>
+            <i class="bi bi-cloud-upload"></i><span class="me-auto"><span x-text="pending"></span> {{ __('offline sales waiting to sync') }}</span>
+            <a :href="offlineUrl" class="btn btn-sm btn-light">{{ __('Review') }}</a>
+        </div>
+    </div>
+
     @if (! $branch)
         <div class="d-grid" style="min-height: calc(100vh - 64px); place-items: center">
             <x-empty-state icon="bi-shop" :title="__('Choose a branch')" :message="__('Select a single branch in the navbar to start selling.')" />
@@ -91,10 +103,13 @@
                         @endif
                         <div class="mb-3"></div>
                         <div class="d-grid gap-2 px-3">
-                            <button type="button" class="btn btn-outline-primary btn-lg" @click="printReceipt(@js($completed['receipt']))"><i class="bi bi-printer"></i> {{ __('Print receipt') }}</button>
-                            @if ($completed['phone'])
-                                <button type="button" class="btn btn-outline-secondary" wire:click="smsReceipt"><i class="bi bi-chat-dots"></i> {{ __('SMS receipt') }}</button>
-                            @endif
+                            <button type="button" class="btn btn-outline-primary btn-lg" @click="printReceipt(@js($completed['receipt']), @js($completed['escpos'] ?? null))"><i class="bi bi-printer"></i> {{ __('Print receipt') }}</button>
+                            <div class="d-flex gap-2">
+                                <a href="{{ $completed['whatsapp'] ?? '#' }}" target="_blank" rel="noopener" class="btn btn-outline-success flex-fill"><i class="bi bi-whatsapp"></i> WhatsApp</a>
+                                @if ($completed['phone'])
+                                    <button type="button" class="btn btn-outline-secondary flex-fill" wire:click="smsReceipt"><i class="bi bi-chat-dots"></i> {{ __('SMS receipt') }}</button>
+                                @endif
+                            </div>
                             <button type="button" class="btn btn-success btn-lg" wire:click="newSale" x-ref="newSale"><i class="bi bi-plus-lg"></i> {{ __('New sale') }} <kbd class="ms-1">Enter</kbd></button>
                         </div>
                     </div>
@@ -308,9 +323,16 @@
                                         <div class="row g-2 align-items-center">
                                             <div class="col-md-3 fw-semibold"><i class="bi {{ $method->icon() }} text-primary"></i> {{ $method->label() }}</div>
                                             <div class="col-md-4">
-                                                <div class="input-group"><span class="input-group-text">TSh</span>
-                                                    <input type="number" step="0.01" min="0" class="form-control form-control-lg fw-bold" wire:model.live.debounce.300ms="payments.{{ $i }}.amount" aria-label="{{ __('Amount') }}" @if ($loop->first) autofocus @endif>
-                                                </div>
+                                                @if ($method->isForeign())
+                                                    <div class="input-group"><span class="input-group-text">US$</span>
+                                                        <input type="number" step="0.01" min="0" class="form-control form-control-lg fw-bold" wire:model.live.debounce.300ms="payments.{{ $i }}.foreign_amount" aria-label="{{ __('Amount in US dollars') }}" @if ($loop->first) autofocus @endif>
+                                                    </div>
+                                                    <div class="small text-body-secondary mt-1">= {{ money($p['amount'] ?? 0) }} · {{ __('Rate :r', ['r' => money(setting('currency.usd_rate'))]) }}</div>
+                                                @else
+                                                    <div class="input-group"><span class="input-group-text">TSh</span>
+                                                        <input type="number" step="0.01" min="0" class="form-control form-control-lg fw-bold" wire:model.live.debounce.300ms="payments.{{ $i }}.amount" aria-label="{{ __('Amount') }}" @if ($loop->first) autofocus @endif>
+                                                    </div>
+                                                @endif
                                             </div>
                                             <div class="col-md-4">
                                                 @if ($method->needsReference())
@@ -400,7 +422,27 @@
 
         <div class="position-fixed bottom-0 m-3 d-none d-lg-block no-print" style="z-index: 1030; left: 72px">
             <button type="button" class="btn btn-sm btn-light shadow-sm" wire:click="$set('modal', 'help')"><i class="bi bi-keyboard"></i> <kbd>?</kbd> {{ __('Shortcuts') }}</button>
+            @if (setting('receipt.print_mode') === 'escpos')
+                <span wire:ignore x-data="printerStatus({ drawerUrl: @js(route('pos.drawer')) })" class="d-inline-flex gap-1">
+                    <template x-if="!supported"><span class="badge text-bg-warning-soft">{{ __('Direct printing needs Chrome or Edge') }}</span></template>
+                    <template x-if="supported">
+                        <div class="btn-group btn-group-sm shadow-sm">
+                            <button type="button" class="btn btn-light dropdown-toggle" data-bs-toggle="dropdown" :class="ready ? 'text-success' : 'text-danger'">
+                                <i class="bi bi-printer"></i> <span x-text="ready ? @js(__('Printer ready')) : @js(__('Connect printer'))"></span>
+                            </button>
+                            <ul class="dropdown-menu">
+                                <li><button type="button" class="dropdown-item" @click="connect('usb')"><i class="bi bi-usb-symbol"></i> {{ __('USB printer') }}</button></li>
+                                <li><button type="button" class="dropdown-item" @click="connect('serial')"><i class="bi bi-plug"></i> {{ __('Serial / COM / Bluetooth') }}</button></li>
+                            </ul>
+                            @can('cash.movements')
+                                <button type="button" class="btn btn-light" @click="drawer()" title="{{ __('Open cash drawer (logged)') }}"><i class="bi bi-inbox"></i> {{ __('Drawer') }}</button>
+                            @endcan
+                        </div>
+                    </template>
+                </span>
+            @endif
             <span class="badge text-bg-light border ms-1">{{ $this->shift->register->name }} · {{ $this->shift->number }}</span>
+            <a href="{{ route('pos.offline') }}" class="btn btn-sm btn-light shadow-sm ms-1" title="{{ __('Keep selling without internet') }}"><i class="bi bi-wifi-off"></i> {{ __('Offline till') }}</a>
         </div>
         <iframe x-ref="printFrame" class="d-none" title="receipt"></iframe>
 

@@ -46,6 +46,8 @@ class SalesTable extends DataTable
         if (auth()->user()->can('sales.view_all')) {
             $filters[] = Filter::select('user_id', __('Cashiers'), User::query()->orderBy('name')->pluck('name', 'id')->all());
         }
+        $filters[] = Filter::select('origin', __('Offline sales'), ['offline' => __('Made offline'), 'review' => __('Needs review')])
+            ->query(fn ($q, $v) => $v === 'review' ? $q->whereNotNull('review_flags') : $q->whereNotNull('synced_at'));
         $filters[] = Filter::select('method', __('Payment methods'), PaymentMethod::options())
             ->query(fn ($q, $v) => $q->whereHas('payments', fn ($p) => $p->where('method', $v)));
         if (! $this->customerId) {

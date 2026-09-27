@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Exceptions\BusinessRuleException;
+use App\Http\Requests\CashMovementRequest;
+use App\Http\Requests\CloseShiftRequest;
 use App\Models\Shift;
 use App\Services\ShiftService;
 use App\Support\BranchContext;
@@ -17,7 +19,7 @@ class ShiftController extends Controller
 
     public function index(Request $request, BranchContext $context): View
     {
-        abort_unless($request->user()->canAny(['shifts.open', 'shifts.manage']), 403);
+        $this->authorize('viewAny', Shift::class);
 
         $trend = null;
         if ($request->user()->can('shifts.manage')) {
@@ -34,7 +36,7 @@ class ShiftController extends Controller
 
     public function current(Request $request, BranchContext $context): View|RedirectResponse
     {
-        abort_unless($request->user()->can('shifts.open'), 403);
+        $this->authorize('shifts.open');
         $shift = $this->shifts->current($request->user(), $context->currentId());
         if (! $shift) {
             return redirect()->route('pos')->with('info', __('You have no open shift. Open one to start selling.'));
@@ -45,7 +47,7 @@ class ShiftController extends Controller
 
     public function show(Request $request, Shift $shift): View
     {
-        $this->authorizeShift($request, $shift);
+        $this->authorize('view', $shift);
         $shift->load(['user', 'register', 'closer', 'cashMovements.user']);
         $summary = $shift->isOpen() ? $this->shifts->summary($shift) : ($shift->summary ?? $this->shifts->summary($shift));
         $sales = $shift->sales()->with('customer')->whereIn('status', ['completed', 'voided', 'layaway'])->latest()->limit(50)->get();
@@ -53,15 +55,10 @@ class ShiftController extends Controller
         return view('shifts.show', compact('shift', 'summary', 'sales'));
     }
 
-    public function cash(Request $request, Shift $shift): RedirectResponse
+    public function cash(CashMovementRequest $request, Shift $shift): RedirectResponse
     {
-        abort_unless($request->user()->can('cash.movements'), 403);
-        $this->authorizeShift($request, $shift, own: true);
-        $data = $request->validate([
-            'type' => ['required', 'in:in,out'],
-            'amount' => ['required', 'numeric', 'gt:0'],
-            'reason' => ['required', 'string', 'max:255'],
-        ]);
+        $this->authorize('cashMovement', $shift);
+        $data = $request->validated();
         try {
             $this->shifts->cashMovement($shift, $request->user(), $data['type'], $data['amount'], $data['reason']);
         } catch (BusinessRuleException $e) {
@@ -71,15 +68,10 @@ class ShiftController extends Controller
         return back()->with('success', $data['type'] === 'in' ? __('Cash in recorded.') : __('Cash out recorded.'));
     }
 
-    public function close(Request $request, Shift $shift): RedirectResponse
+    public function close(CloseShiftRequest $request, Shift $shift): RedirectResponse
     {
-        $this->authorizeShift($request, $shift, own: true);
-        $data = $request->validate([
-            'counted_cash' => ['required', 'numeric', 'min:0'],
-            'denominations' => ['array'],
-            'denominations.*' => ['nullable', 'integer', 'min:0'],
-            'note' => ['nullable', 'string', 'max:500'],
-        ]);
+        $this->authorize('close', $shift);
+        $data = $request->validated();
         $force = $shift->user_id !== $request->user()->id;
         try {
             $shift = $this->shifts->close($shift, $request->user(), $data['counted_cash'], $data['denominations'] ?? [], $data['note'] ?? null, $force);
@@ -94,19 +86,12 @@ class ShiftController extends Controller
 
     public function report(Request $request, Shift $shift, string $type): View
     {
-        $this->authorizeShift($request, $shift);
+        $this->authorize('view', $shift);
         abort_unless(in_array($type, ['x', 'z'], true), 404);
         abort_if($type === 'z' && $shift->isOpen(), 404);
         $shift->load(['user', 'register', 'closer', 'branch']);
         $summary = $type === 'x' || ! $shift->summary ? $this->shifts->summary($shift) : $shift->summary;
 
         return view('shifts.report', ['shift' => $shift, 'summary' => $summary, 'type' => $type, 'paper' => setting('receipt.paper', '80mm')]);
-    }
-
-    protected function authorizeShift(Request $request, Shift $shift, bool $own = false): void
-    {
-        $user = $request->user();
-        $allowed = $shift->user_id === $user->id || $user->can('shifts.manage');
-        abort_unless($allowed, 403);
     }
 }

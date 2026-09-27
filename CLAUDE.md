@@ -372,6 +372,14 @@ tests/Feature  tests/Unit
 | 7 | ✅ Done | | Dashboard, 18 reports, queued Excel/PDF exports, notifications |
 | 8 | ✅ Done | | FastLipa (two-phase, signed idempotent callbacks, reconciliation), Beem SMS, fiscal hook, POS lock screen, backups UI, MySQL-verified, sw translations, DEPLOY.md, deploy.sh, CI |
 
+**Additions after Phase 8:**
+- FastLipa aligned with the live API, including failed→completed re-checks.
+- Supplier statement PDF, and emailing POs to suppliers.
+- USD cash payments, and WhatsApp sharing through signed PDF links.
+- Direct ESC/POS printing with the cash drawer.
+- Offline till: service worker, local queue, idempotent sync with review flags.
+- Model policies and Form Requests across all controllers (§3.7).
+
 ---
 
 ## 15. Session Kickoff Prompts (copy one per cloud session)

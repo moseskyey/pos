@@ -7,6 +7,7 @@ use App\Models\SupplierBill;
 use App\Models\SupplierLedgerEntry;
 use App\Support\Money;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
@@ -39,6 +40,27 @@ class SupplierLedgerService
         };
 
         return DB::transactionLevel() > 0 ? $callback() : DB::transaction($callback);
+    }
+
+    /** Ledger entries in a date range with opening/closing balances (what we owe). */
+    public function statement(Supplier $supplier, Carbon $from, Carbon $to): array
+    {
+        $opening = SupplierLedgerEntry::query()->where('supplier_id', $supplier->id)
+            ->where('created_at', '<', $from->copy()->startOfDay())->orderByDesc('id')->value('balance_after') ?? '0.00';
+        $entries = SupplierLedgerEntry::query()->where('supplier_id', $supplier->id)
+            ->whereBetween('created_at', [$from->copy()->startOfDay(), $to->copy()->endOfDay()])->orderBy('id')->get();
+
+        return [
+            'supplier' => $supplier,
+            'from' => $from,
+            'to' => $to,
+            'opening' => Money::round($opening),
+            'entries' => $entries,
+            'billed' => Money::sum($entries, 'credit'),
+            'paid' => Money::sum($entries, 'debit'),
+            'closing' => Money::round($entries->last()?->balance_after ?? $opening),
+            'aging' => $this->aging($supplier),
+        ];
     }
 
     public function aging(Supplier $supplier): array

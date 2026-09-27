@@ -4,6 +4,11 @@ namespace App\Http\Controllers;
 
 use App\Enums\PaymentMethod;
 use App\Exceptions\BusinessRuleException;
+use App\Http\Requests\EmailPurchaseOrderRequest;
+use App\Http\Requests\ReorderOrderRequest;
+use App\Http\Requests\SupplierBillRequest;
+use App\Http\Requests\SupplierPaymentRequest;
+use App\Mail\PurchaseOrderMail;
 use App\Models\GoodsReceipt;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseReturn;
@@ -16,7 +21,7 @@ use App\Support\BranchContext;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -31,28 +36,28 @@ class PurchaseController extends Controller
 
     public function orders(Request $request): View
     {
-        abort_unless($request->user()->can('purchases.view'), 403);
+        $this->authorize('viewAny', PurchaseOrder::class);
 
         return view('purchases.orders.index');
     }
 
     public function createOrder(Request $request): View
     {
-        abort_unless($request->user()->can('purchases.manage'), 403);
+        $this->authorize('create', PurchaseOrder::class);
 
         return view('purchases.orders.form', ['order' => null, 'supplier' => $request->integer('supplier') ?: null]);
     }
 
     public function editOrder(Request $request, PurchaseOrder $purchaseOrder): View
     {
-        abort_unless($request->user()->can('purchases.manage') && $purchaseOrder->status === 'draft', 403);
+        $this->authorize('update', $purchaseOrder);
 
         return view('purchases.orders.form', ['order' => $purchaseOrder, 'supplier' => null]);
     }
 
     public function showOrder(Request $request, PurchaseOrder $purchaseOrder): View
     {
-        abort_unless($request->user()->can('purchases.view'), 403);
+        $this->authorize('view', $purchaseOrder);
         $purchaseOrder->load(['items.product.unit', 'supplier', 'creator', 'receipts', 'branch']);
 
         return view('purchases.orders.show', ['order' => $purchaseOrder]);
@@ -60,7 +65,7 @@ class PurchaseController extends Controller
 
     public function sendOrder(Request $request, PurchaseOrder $purchaseOrder): RedirectResponse
     {
-        abort_unless($request->user()->can('purchases.manage'), 403);
+        $this->authorize('process', $purchaseOrder);
         try {
             $this->purchases->markSent($purchaseOrder, $request->user());
         } catch (BusinessRuleException $e) {
@@ -70,9 +75,25 @@ class PurchaseController extends Controller
         return back()->with('success', __('Marked as sent. Download the PDF to share with the supplier.'));
     }
 
+    /** Email the PO PDF to the supplier (queued) and mark a draft as sent. */
+    public function emailOrder(EmailPurchaseOrderRequest $request, PurchaseOrder $purchaseOrder): RedirectResponse
+    {
+        if (! in_array($purchaseOrder->status, ['draft', 'sent'], true)) {
+            return back()->with('error', __('This purchase order cannot be sent.'));
+        }
+        $data = $request->validated();
+        if ($purchaseOrder->status === 'draft') {
+            $this->purchases->markSent($purchaseOrder, $request->user());
+        }
+        Mail::to($data['email'])->queue(new PurchaseOrderMail($purchaseOrder, $data['message'] ?? null));
+        activity('purchases')->causedBy($request->user())->performedOn($purchaseOrder)->withProperties(['email' => $data['email']])->log('Purchase order emailed');
+
+        return back()->with('success', __('Purchase order emailed to :e.', ['e' => $data['email']]));
+    }
+
     public function cancelOrder(Request $request, PurchaseOrder $purchaseOrder): RedirectResponse
     {
-        abort_unless($request->user()->can('purchases.manage'), 403);
+        $this->authorize('process', $purchaseOrder);
         try {
             $this->purchases->cancelOrder($purchaseOrder, $request->user());
         } catch (BusinessRuleException $e) {
@@ -84,7 +105,7 @@ class PurchaseController extends Controller
 
     public function orderPdf(Request $request, PurchaseOrder $purchaseOrder): Response
     {
-        abort_unless($request->user()->can('purchases.view'), 403);
+        $this->authorize('view', $purchaseOrder);
         $purchaseOrder->load(['items.product.unit', 'supplier', 'branch', 'creator']);
 
         return Pdf::loadView('pdf.purchase-order', ['order' => $purchaseOrder, 'branch' => $purchaseOrder->branch, 'title' => $purchaseOrder->number, 'docTitle' => __('Purchase order')])
@@ -95,21 +116,21 @@ class PurchaseController extends Controller
 
     public function receipts(Request $request): View
     {
-        abort_unless($request->user()->canAny(['purchases.view', 'purchases.receive']), 403);
+        $this->authorize('viewAny', GoodsReceipt::class);
 
         return view('purchases.receipts.index');
     }
 
     public function createReceipt(Request $request): View
     {
-        abort_unless($request->user()->can('purchases.receive'), 403);
+        $this->authorize('create', GoodsReceipt::class);
 
         return view('purchases.receipts.create', ['order' => $request->integer('order') ?: null, 'supplier' => $request->integer('supplier') ?: null]);
     }
 
     public function showReceipt(Request $request, GoodsReceipt $goodsReceipt): View
     {
-        abort_unless($request->user()->canAny(['purchases.view', 'purchases.receive']), 403);
+        $this->authorize('view', $goodsReceipt);
         $goodsReceipt->load(['items.product.unit', 'supplier', 'purchaseOrder', 'user', 'bill']);
 
         return view('purchases.receipts.show', ['receipt' => $goodsReceipt]);
@@ -119,23 +140,15 @@ class PurchaseController extends Controller
 
     public function bills(Request $request): View
     {
-        abort_unless($request->user()->can('supplier.payments'), 403);
+        $this->authorize('viewAny', SupplierBill::class);
 
         return view('purchases.bills.index', ['suppliers' => Supplier::where('is_active', true)->orderBy('name')->pluck('name', 'id')]);
     }
 
-    public function storeBill(Request $request, BranchContext $context): RedirectResponse
+    public function storeBill(SupplierBillRequest $request, BranchContext $context): RedirectResponse
     {
-        abort_unless($request->user()->can('supplier.payments'), 403);
-        $data = $request->validate([
-            'supplier_id' => ['required', 'exists:suppliers,id'],
-            'bill_no' => ['nullable', 'string', 'max:64'],
-            'bill_date' => ['required', 'date'],
-            'due_date' => ['nullable', 'date', 'after_or_equal:bill_date'],
-            'total' => ['required', 'numeric', 'gt:0'],
-            'tax_total' => ['nullable', 'numeric', 'min:0', 'lte:total'],
-            'description' => ['nullable', 'string', 'max:500'],
-        ]);
+        $this->authorize('create', SupplierBill::class);
+        $data = $request->validated();
         $branchId = $context->currentId() ?? $context->accessibleIds()[0];
         $bill = $this->purchases->recordBill($branchId, Supplier::findOrFail($data['supplier_id']), $data, $request->user());
 
@@ -144,7 +157,7 @@ class PurchaseController extends Controller
 
     public function showBill(Request $request, SupplierBill $supplierBill): View
     {
-        abort_unless($request->user()->can('supplier.payments'), 403);
+        $this->authorize('view', $supplierBill);
         $supplierBill->load(['supplier', 'goodsReceipt', 'allocations.payment']);
 
         return view('purchases.bills.show', ['bill' => $supplierBill]);
@@ -152,7 +165,7 @@ class PurchaseController extends Controller
 
     public function createPayment(Request $request): View
     {
-        abort_unless($request->user()->can('supplier.payments'), 403);
+        $this->authorize('pay', SupplierBill::class);
         $supplierId = $request->integer('supplier') ?: null;
 
         return view('purchases.payments.create', [
@@ -163,20 +176,10 @@ class PurchaseController extends Controller
         ]);
     }
 
-    public function storePayment(Request $request, SupplierPaymentService $service, BranchContext $context): RedirectResponse
+    public function storePayment(SupplierPaymentRequest $request, SupplierPaymentService $service, BranchContext $context): RedirectResponse
     {
-        abort_unless($request->user()->can('supplier.payments'), 403);
-        $data = $request->validate([
-            'supplier_id' => ['required', 'exists:suppliers,id'],
-            'amount' => ['required', 'numeric', 'gt:0'],
-            'method' => ['required', Rule::enum(PaymentMethod::class)],
-            'reference' => ['nullable', 'string', 'max:100'],
-            'paid_at' => ['required', 'date', 'before_or_equal:today'],
-            'note' => ['nullable', 'string', 'max:255'],
-            'from_drawer' => ['boolean'],
-            'allocations' => ['array'],
-            'allocations.*' => ['nullable', 'numeric', 'min:0'],
-        ]);
+        $this->authorize('pay', SupplierBill::class);
+        $data = $request->validated();
         $branchId = $context->currentId() ?? $context->accessibleIds()[0];
         $allocations = array_filter($data['allocations'] ?? [], fn ($v) => (float) $v > 0);
         if ($request->boolean('from_drawer')) {
@@ -195,21 +198,21 @@ class PurchaseController extends Controller
 
     public function returns(Request $request): View
     {
-        abort_unless($request->user()->can('purchases.return'), 403);
+        $this->authorize('viewAny', PurchaseReturn::class);
 
         return view('purchases.returns.index');
     }
 
     public function createReturn(Request $request): View
     {
-        abort_unless($request->user()->can('purchases.return'), 403);
+        $this->authorize('create', PurchaseReturn::class);
 
         return view('purchases.returns.create', ['receipt' => $request->integer('receipt') ?: null]);
     }
 
     public function showReturn(Request $request, PurchaseReturn $purchaseReturn): View
     {
-        abort_unless($request->user()->can('purchases.return'), 403);
+        $this->authorize('view', $purchaseReturn);
         $purchaseReturn->load(['items.product', 'supplier', 'goodsReceipt', 'user']);
 
         return view('purchases.returns.show', ['return' => $purchaseReturn]);
@@ -219,7 +222,7 @@ class PurchaseController extends Controller
 
     public function reorder(Request $request, ReorderService $reorder, BranchContext $context): View
     {
-        abort_unless($request->user()->can('purchases.manage'), 403);
+        $this->authorize('reorder', PurchaseOrder::class);
         $branchId = $context->currentId();
 
         return view('purchases.reorder', [
@@ -229,17 +232,10 @@ class PurchaseController extends Controller
         ]);
     }
 
-    public function createFromReorder(Request $request, BranchContext $context): RedirectResponse
+    public function createFromReorder(ReorderOrderRequest $request, BranchContext $context): RedirectResponse
     {
-        abort_unless($request->user()->can('purchases.manage'), 403);
-        $data = $request->validate([
-            'supplier_id' => ['required', 'exists:suppliers,id'],
-            'items' => ['required', 'array'],
-            'items.*.product_id' => ['required', 'exists:products,id'],
-            'items.*.quantity' => ['required', 'numeric', 'min:0'],
-            'items.*.unit_cost' => ['required', 'numeric', 'min:0'],
-            'items.*.selected' => ['nullable', 'boolean'],
-        ]);
+        $this->authorize('reorder', PurchaseOrder::class);
+        $data = $request->validated();
         $items = array_values(array_filter($data['items'], fn ($i) => ! empty($i['selected']) && $i['quantity'] > 0));
         if (! $items) {
             return back()->with('error', __('Select at least one product.'));

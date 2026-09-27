@@ -15,6 +15,9 @@
         </div>
         <div class="page-actions">
             <a href="{{ route('customers.statement', $customer) }}" target="_blank" class="btn btn-outline-secondary"><i class="bi bi-file-earmark-pdf"></i> {{ __('Statement') }}</a>
+            @can('customers.payments')
+                <a href="{{ app(\App\Services\ShareService::class)->statementLink($customer) }}" target="_blank" rel="noopener" class="btn btn-outline-success"><i class="bi bi-whatsapp"></i> WhatsApp</a>
+            @endcan
             @if ($customer->balance > 0)
                 @can('customers.payments')
                     @if ($customer->phone)

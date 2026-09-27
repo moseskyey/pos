@@ -106,7 +106,15 @@ class ShiftService
         $cashOut = Money::round(CashMovement::withoutGlobalScopes()->where('shift_id', $shift->id)->where('type', 'out')->sum('amount'));
         $cashPayments = $payments[PaymentMethod::Cash->value]['total'] ?? '0.00';
 
-        $expected = Money::sub(Money::add($shift->opening_float, $cashPayments, $customerCash, $cashIn), Money::add($cashOut, $returns['cash'], $expenseCash));
+        // Dollars stay in the drawer as dollars; change for them is paid out in shillings.
+        $usdRows = SalePayment::query()->where('sale_payments.shift_id', $shift->id)->where('sale_payments.method', PaymentMethod::CashUsd->value)
+            ->leftJoin('sales', 'sales.id', '=', 'sale_payments.sale_id')
+            ->where(fn ($q) => $q->whereNull('sale_payments.sale_id')->orWhereIn('sales.status', [SaleStatus::Completed->value, SaleStatus::Layaway->value, SaleStatus::Converted->value]))
+            ->get(['sale_payments.meta'])->pluck('meta');
+        $expectedUsd = Money::sum($usdRows, fn ($m) => $m['foreign_amount'] ?? 0);
+        $usdChange = Money::sum($usdRows, fn ($m) => $m['change'] ?? 0);
+
+        $expected = Money::sub(Money::add($shift->opening_float, $cashPayments, $customerCash, $cashIn), Money::add($cashOut, $returns['cash'], $expenseCash, $usdChange));
 
         return [
             'sales_count' => (int) $sales->count,
@@ -124,6 +132,8 @@ class ShiftService
             'cash_in' => $cashIn,
             'cash_out' => $cashOut,
             'expected_cash' => $expected,
+            'expected_usd' => $expectedUsd,
+            'usd_change' => $usdChange,
         ];
     }
 

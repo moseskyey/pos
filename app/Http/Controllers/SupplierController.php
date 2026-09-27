@@ -5,24 +5,28 @@ namespace App\Http\Controllers;
 use App\Http\Requests\SupplierRequest;
 use App\Models\Supplier;
 use App\Services\SupplierLedgerService;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Illuminate\View\View;
 
 class SupplierController extends Controller
 {
     public function index(Request $request): View
     {
-        abort_unless($request->user()->can('suppliers.view'), 403);
+        $this->authorize('viewAny', Supplier::class);
 
         return view('suppliers.index', ['owed' => Supplier::sum('balance'), 'count' => Supplier::count()]);
     }
 
     public function create(Request $request): View
     {
-        abort_unless($request->user()->can('suppliers.manage'), 403);
+        $this->authorize('create', Supplier::class);
 
         return view('suppliers.form', ['supplier' => new Supplier(['payment_terms_days' => 30, 'is_active' => true])]);
     }
@@ -45,7 +49,7 @@ class SupplierController extends Controller
 
     public function show(Request $request, Supplier $supplier, SupplierLedgerService $ledger): View
     {
-        abort_unless($request->user()->can('suppliers.view'), 403);
+        $this->authorize('view', $supplier);
 
         return view('suppliers.show', [
             'supplier' => $supplier,
@@ -57,7 +61,7 @@ class SupplierController extends Controller
 
     public function edit(Request $request, Supplier $supplier): View
     {
-        abort_unless($request->user()->can('suppliers.manage'), 403);
+        $this->authorize('update', $supplier);
 
         return view('suppliers.form', compact('supplier'));
     }
@@ -71,7 +75,7 @@ class SupplierController extends Controller
 
     public function destroy(Request $request, Supplier $supplier): RedirectResponse
     {
-        abort_unless($request->user()->can('suppliers.manage'), 403);
+        $this->authorize('delete', $supplier);
         if ($supplier->balance > 0) {
             return back()->with('error', __('You still owe this supplier.'));
         }
@@ -79,5 +83,16 @@ class SupplierController extends Controller
         $supplier->delete();
 
         return redirect()->route('suppliers.index')->with('success', __('Supplier archived.'));
+    }
+
+    public function statement(Request $request, Supplier $supplier, SupplierLedgerService $ledger): Response
+    {
+        $this->authorize('view', $supplier);
+        $from = $request->date('from') ?? now()->subMonths(3)->startOfMonth();
+        $to = $request->date('to') ?? now();
+        $data = $ledger->statement($supplier, Carbon::instance($from), Carbon::instance($to));
+
+        return Pdf::loadView('pdf.supplier-statement', $data + ['title' => __('Statement'), 'docTitle' => __('Supplier statement')])
+            ->setPaper('a4')->stream('supplier-statement-'.Str::slug($supplier->name).'.pdf');
     }
 }

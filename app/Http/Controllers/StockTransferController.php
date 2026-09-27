@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Exceptions\BusinessRuleException;
 use App\Exceptions\InsufficientStockException;
+use App\Http\Requests\DispatchTransferRequest;
+use App\Http\Requests\ReceiveTransferRequest;
 use App\Models\StockTransfer;
 use App\Services\StockTransferService;
 use App\Support\BranchContext;
@@ -17,21 +19,21 @@ class StockTransferController extends Controller
 
     public function index(Request $request): View
     {
-        abort_unless($request->user()->canAny(['stock.transfer', 'stock.transfer.approve']), 403);
+        $this->authorize('viewAny', StockTransfer::class);
 
         return view('transfers.index');
     }
 
     public function create(Request $request): View
     {
-        abort_unless($request->user()->can('stock.transfer'), 403);
+        $this->authorize('create', StockTransfer::class);
 
         return view('transfers.create');
     }
 
     public function show(Request $request, StockTransfer $transfer, BranchContext $context): View
     {
-        abort_unless($request->user()->canAny(['stock.transfer', 'stock.transfer.approve', 'stock.view']), 403);
+        $this->authorize('view', $transfer);
         $transfer->load(['items.product.unit', 'fromBranch', 'toBranch', 'requester', 'approver', 'dispatcher', 'receiver']);
 
         return view('transfers.show', [
@@ -43,30 +45,30 @@ class StockTransferController extends Controller
 
     public function approve(Request $request, StockTransfer $transfer): RedirectResponse
     {
-        abort_unless($request->user()->can('stock.transfer.approve'), 403);
+        $this->authorize('approve', $transfer);
 
         return $this->run(fn () => $this->service->approve($transfer, $request->user()), __('Transfer approved.'));
     }
 
-    public function dispatch(Request $request, StockTransfer $transfer, BranchContext $context): RedirectResponse
+    public function dispatch(DispatchTransferRequest $request, StockTransfer $transfer, BranchContext $context): RedirectResponse
     {
-        abort_unless($request->user()->can('stock.transfer') && $context->canAccess($transfer->from_branch_id), 403);
-        $data = $request->validate(['quantities' => ['array'], 'quantities.*' => ['numeric', 'min:0']]);
+        $this->authorize('dispatch', $transfer);
+        $data = $request->validated();
 
         return $this->run(fn () => $this->service->dispatch($transfer, $request->user(), $data['quantities'] ?? []), __('Transfer dispatched. Stock has left :branch.', ['branch' => $transfer->fromBranch->name]));
     }
 
-    public function receive(Request $request, StockTransfer $transfer, BranchContext $context): RedirectResponse
+    public function receive(ReceiveTransferRequest $request, StockTransfer $transfer, BranchContext $context): RedirectResponse
     {
-        abort_unless($request->user()->can('stock.transfer') && $context->canAccess($transfer->to_branch_id), 403);
-        $data = $request->validate(['quantities' => ['array'], 'quantities.*' => ['numeric', 'min:0'], 'notes' => ['array'], 'notes.*' => ['nullable', 'string', 'max:255']]);
+        $this->authorize('receive', $transfer);
+        $data = $request->validated();
 
         return $this->run(fn () => $this->service->receive($transfer, $request->user(), $data['quantities'] ?? [], $data['notes'] ?? []), __('Transfer received into stock.'));
     }
 
     public function cancel(Request $request, StockTransfer $transfer): RedirectResponse
     {
-        abort_unless($request->user()->canAny(['stock.transfer', 'stock.transfer.approve']), 403);
+        $this->authorize('cancel', $transfer);
 
         return $this->run(fn () => $this->service->cancel($transfer, $request->user()), __('Transfer cancelled.'));
     }

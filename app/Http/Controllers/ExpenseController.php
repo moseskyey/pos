@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Enums\PaymentMethod;
 use App\Exceptions\BusinessRuleException;
+use App\Http\Requests\ExpenseCategoryRequest;
 use App\Http\Requests\ExpenseRequest;
 use App\Models\Expense;
 use App\Models\ExpenseCategory;
@@ -19,7 +20,7 @@ class ExpenseController extends Controller
 {
     public function index(Request $request): View
     {
-        abort_unless($request->user()->can('expenses.view'), 403);
+        $this->authorize('viewAny', Expense::class);
         $month = Expense::query()->whereBetween('expense_date', [now()->startOfMonth(), now()->endOfMonth()]);
         $byCategory = (clone $month)->join('expense_categories', 'expense_categories.id', '=', 'expenses.expense_category_id')
             ->groupBy('expense_categories.name')->selectRaw('expense_categories.name as name, SUM(expenses.amount) as total')->orderByDesc('total')->pluck('total', 'name');
@@ -35,7 +36,7 @@ class ExpenseController extends Controller
 
     public function create(Request $request): View
     {
-        abort_unless($request->user()->can('expenses.manage'), 403);
+        $this->authorize('create', Expense::class);
 
         return view('expenses.form', $this->formData(new Expense(['expense_date' => today(), 'payment_method' => 'cash'])));
     }
@@ -59,7 +60,7 @@ class ExpenseController extends Controller
 
     public function edit(Request $request, Expense $expense): View
     {
-        abort_unless($request->user()->can('expenses.manage'), 403);
+        $this->authorize('update', $expense);
 
         return view('expenses.form', $this->formData($expense));
     }
@@ -83,7 +84,7 @@ class ExpenseController extends Controller
 
     public function destroy(Request $request, Expense $expense): RedirectResponse
     {
-        abort_unless($request->user()->can('expenses.manage'), 403);
+        $this->authorize('delete', $expense);
         if ($expense->paid_from_drawer && DB::table('shifts')->where('id', $expense->shift_id)->where('status', 'closed')->exists()) {
             return back()->with('error', __('This expense was paid from a closed shift and cannot be deleted.'));
         }
@@ -92,10 +93,10 @@ class ExpenseController extends Controller
         return redirect()->route('expenses.index')->with('success', __('Expense deleted.'));
     }
 
-    public function storeCategory(Request $request): RedirectResponse
+    public function storeCategory(ExpenseCategoryRequest $request): RedirectResponse
     {
-        abort_unless($request->user()->can('expenses.manage'), 403);
-        $data = $request->validate(['name' => ['required', 'string', 'max:80', 'unique:expense_categories,name']]);
+        $this->authorize('create', Expense::class);
+        $data = $request->validated();
         ExpenseCategory::create($data + ['is_active' => true]);
 
         return back()->with('success', __('Category added.'));
@@ -103,7 +104,7 @@ class ExpenseController extends Controller
 
     public function recurring(Request $request): View
     {
-        abort_unless($request->user()->can('expenses.manage'), 403);
+        $this->authorize('create', Expense::class);
 
         return view('expenses.recurring');
     }

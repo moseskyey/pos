@@ -14,6 +14,7 @@
                 <form method="POST" action="{{ route('purchase-orders.send', $order) }}">@csrf<button class="btn btn-outline-primary"><i class="bi bi-send"></i> {{ __('Mark as sent') }}</button></form>
             @endif
             @if (in_array($order->status, ['draft', 'sent']))
+                <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#emailPoModal"><i class="bi bi-envelope"></i> {{ __('Email to supplier') }}</button>
                 <form method="POST" action="{{ route('purchase-orders.cancel', $order) }}" data-confirm="{{ __('Cancel this purchase order?') }}">@csrf<button class="btn btn-soft-danger">{{ __('Cancel') }}</button></form>
             @endif
         @endcan
@@ -56,4 +57,22 @@
             @if ($order->note)<x-card :title="__('Note')" class="mt-4">{{ $order->note }}</x-card>@endif
         </div>
     </div>
+
+    @can('purchases.manage')
+        @if (in_array($order->status, ['draft', 'sent']))
+            @push('modals')
+                <x-modal id="emailPoModal" :title="__('Email to supplier')">
+                    <form method="POST" action="{{ route('purchase-orders.email', $order) }}" id="emailPoForm">@csrf
+                        <x-input name="email" type="email" :label="__('Supplier email')" :value="old('email', $order->supplier->email)" required />
+                        <x-textarea name="message" :label="__('Message (optional)')" rows="3" class="mb-0" />
+                        <p class="small text-body-secondary mt-2 mb-0"><i class="bi bi-paperclip"></i> {{ __('The purchase order PDF is attached. A draft order is marked as sent.') }}</p>
+                    </form>
+                    <x-slot:footer>
+                        <button type="button" class="btn btn-light" data-bs-dismiss="modal">{{ __('Cancel') }}</button>
+                        <button type="submit" form="emailPoForm" class="btn btn-primary"><i class="bi bi-send"></i> {{ __('Send email') }}</button>
+                    </x-slot:footer>
+                </x-modal>
+            @endpush
+        @endif
+    @endcan
 </x-layouts.app>

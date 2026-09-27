@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Exceptions\BusinessRuleException;
+use App\Http\Requests\RejectAdjustmentRequest;
 use App\Models\StockAdjustment;
 use App\Services\StockAdjustmentService;
 use Illuminate\Http\RedirectResponse;
@@ -15,21 +16,21 @@ class StockAdjustmentController extends Controller
 
     public function index(Request $request): View
     {
-        abort_unless($request->user()->canAny(['stock.adjust', 'stock.adjust.approve']), 403);
+        $this->authorize('viewAny', StockAdjustment::class);
 
         return view('adjustments.index');
     }
 
     public function create(Request $request): View
     {
-        abort_unless($request->user()->can('stock.adjust'), 403);
+        $this->authorize('create', StockAdjustment::class);
 
         return view('adjustments.create');
     }
 
     public function show(Request $request, StockAdjustment $adjustment): View
     {
-        abort_unless($request->user()->canAny(['stock.adjust', 'stock.adjust.approve', 'stock.view']), 403);
+        $this->authorize('view', $adjustment);
         $adjustment->load(['items.product.unit', 'creator', 'approver', 'branch']);
 
         return view('adjustments.show', compact('adjustment'));
@@ -37,7 +38,7 @@ class StockAdjustmentController extends Controller
 
     public function approve(Request $request, StockAdjustment $adjustment): RedirectResponse
     {
-        abort_unless($request->user()->can('stock.adjust.approve'), 403);
+        $this->authorize('approve', $adjustment);
         try {
             $this->service->approve($adjustment, $request->user());
         } catch (BusinessRuleException $e) {
@@ -47,10 +48,10 @@ class StockAdjustmentController extends Controller
         return back()->with('success', __('Adjustment approved and posted to stock.'));
     }
 
-    public function reject(Request $request, StockAdjustment $adjustment): RedirectResponse
+    public function reject(RejectAdjustmentRequest $request, StockAdjustment $adjustment): RedirectResponse
     {
-        abort_unless($request->user()->can('stock.adjust.approve'), 403);
-        $data = $request->validate(['rejection_reason' => ['required', 'string', 'max:255']]);
+        $this->authorize('approve', $adjustment);
+        $data = $request->validated();
         try {
             $this->service->reject($adjustment, $request->user(), $data['rejection_reason']);
         } catch (BusinessRuleException $e) {

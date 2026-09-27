@@ -2,9 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\PrintLabelsRequest;
 use App\Models\Product;
 use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class LabelController extends Controller
@@ -18,7 +18,7 @@ class LabelController extends Controller
 
     public function index(Request $request): View
     {
-        abort_unless($request->user()->can('products.labels'), 403);
+        $this->authorize('products.labels');
         $ids = collect(explode(',', (string) $request->query('products')))->filter()->map(fn ($id) => (int) $id);
         $selected = Product::query()->sellable()->whereIn('id', $ids)->orderBy('name')->get();
 
@@ -29,17 +29,10 @@ class LabelController extends Controller
         ]);
     }
 
-    public function print(Request $request): View
+    public function print(PrintLabelsRequest $request): View
     {
-        abort_unless($request->user()->can('products.labels'), 403);
-        $data = $request->validate([
-            'size' => ['required', Rule::in(array_keys(self::SIZES))],
-            'items' => ['required', 'array', 'min:1'],
-            'items.*.product_id' => ['required', 'exists:products,id'],
-            'items.*.quantity' => ['required', 'integer', 'min:1', 'max:500'],
-            'show_price' => ['nullable', 'boolean'],
-            'show_name' => ['nullable', 'boolean'],
-        ]);
+        $this->authorize('products.labels');
+        $data = $request->validated();
 
         $products = Product::with('barcodes')->whereIn('id', collect($data['items'])->pluck('product_id'))->get()->keyBy('id');
         $labels = [];

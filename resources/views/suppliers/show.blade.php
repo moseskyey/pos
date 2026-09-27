@@ -6,6 +6,7 @@
             @if ($supplier->tin)<span>TIN {{ $supplier->tin }}</span>@endif
             <span>{{ trans_choice(':count day terms|:count days terms', $supplier->payment_terms_days) }}</span>
         </div></x-slot:meta>
+        <a href="{{ route('suppliers.statement', $supplier) }}" target="_blank" class="btn btn-outline-secondary"><i class="bi bi-file-earmark-pdf"></i> {{ __('Statement') }}</a>
         @can('purchases.manage')<a href="{{ route('purchase-orders.create', ['supplier' => $supplier->id]) }}" class="btn btn-outline-secondary"><i class="bi bi-cart-plus"></i> {{ __('New PO') }}</a>@endcan
         @can('purchases.receive')<a href="{{ route('goods-receipts.create', ['supplier' => $supplier->id]) }}" class="btn btn-outline-secondary"><i class="bi bi-box-arrow-in-down"></i> {{ __('Receive goods') }}</a>@endcan
         @if ($supplier->balance > 0)@can('supplier.payments')<a href="{{ route('supplier-payments.create', ['supplier' => $supplier->id]) }}" class="btn btn-success"><i class="bi bi-cash"></i> {{ __('Pay') }}</a>@endcan @endif

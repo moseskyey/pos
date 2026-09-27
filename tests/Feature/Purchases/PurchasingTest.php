@@ -4,6 +4,7 @@ use App\Enums\MovementType;
 use App\Enums\PaymentMethod;
 use App\Exceptions\BusinessRuleException;
 use App\Livewire\Purchases\DocumentForm;
+use App\Mail\PurchaseOrderMail;
 use App\Models\Branch;
 use App\Models\ExpenseCategory;
 use App\Models\Product;
@@ -17,7 +18,9 @@ use App\Services\PurchaseService;
 use App\Services\ReorderService;
 use App\Services\ShiftService;
 use App\Services\StockService;
+use App\Services\SupplierLedgerService;
 use App\Services\SupplierPaymentService;
+use Illuminate\Support\Facades\Mail;
 use Livewire\Livewire;
 
 beforeEach(function () {
@@ -139,4 +142,37 @@ it('creates a GRN through the livewire form', function () {
         ->call('save')
         ->assertRedirect();
     expect($this->stock->available($this->branch->id, $this->product->id))->toBe('6.000');
+});
+
+it('prints a supplier statement', function () {
+    $order = $this->purchases->saveOrder($this->branch->id, $this->supplier, [['product_id' => $this->product->id, 'quantity' => 5, 'unit_cost' => 1000]], $this->user);
+    $this->purchases->receive($this->branch->id, $this->supplier, [['product_id' => $this->product->id, 'quantity' => 5, 'unit_cost' => 1000, 'purchase_order_item_id' => $order->items->first()->id]], $this->user, [], $order);
+
+    $data = app(SupplierLedgerService::class)->statement($this->supplier->fresh(), now()->subMonth(), now());
+    expect($data['closing'])->toBe('5900.00')->and($data['billed'])->toBe('5900.00')->and($data['entries'])->toHaveCount(1);
+
+    $this->get(route('suppliers.statement', $this->supplier))->assertOk()->assertHeader('content-type', 'application/pdf');
+    $this->get(route('suppliers.show', $this->supplier))->assertSee(route('suppliers.statement', $this->supplier));
+});
+
+it('emails a purchase order with the PDF attached and marks it sent', function () {
+    Mail::fake();
+    $order = $this->purchases->saveOrder($this->branch->id, $this->supplier, [['product_id' => $this->product->id, 'quantity' => 5, 'unit_cost' => 1000]], $this->user);
+
+    $this->post(route('purchase-orders.email', $order), ['email' => 'orders@bakhresa.test', 'message' => 'Deliver Monday'])->assertRedirect();
+
+    expect($order->fresh()->status)->toBe('sent');
+    Mail::assertQueued(PurchaseOrderMail::class, function ($mail) use ($order) {
+        return $mail->hasTo('orders@bakhresa.test') && $mail->order->is($order) && $mail->note === 'Deliver Monday';
+    });
+
+    $this->post(route('purchase-orders.email', $order), ['email' => 'not-an-email'])->assertSessionHasErrors('email');
+});
+
+it('renders the purchase order email', function () {
+    $order = $this->purchases->saveOrder($this->branch->id, $this->supplier, [['product_id' => $this->product->id, 'quantity' => 5, 'unit_cost' => 1000]], $this->user);
+    $mail = new PurchaseOrderMail($order->load(['supplier', 'branch']), 'Deliver Monday');
+    $mail->assertSeeInHtml($order->number)->assertSeeInHtml('Deliver Monday');
+    expect($mail->attachments())->toHaveCount(1)
+        ->and($mail->attachments()[0]->as)->toBe($order->number.'.pdf');
 });

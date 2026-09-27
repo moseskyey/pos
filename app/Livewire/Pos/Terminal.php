@@ -25,6 +25,7 @@ use App\Services\ProductService;
 use App\Services\QuotationService;
 use App\Services\ReceiptService;
 use App\Services\SaleService;
+use App\Services\ShareService;
 use App\Services\ShiftService;
 use App\Services\StockService;
 use App\Support\BranchContext;
@@ -578,7 +579,24 @@ class Terminal extends Component
             $remaining = $this->totals['total'];
         }
         $this->payments = array_values($this->payments);
+        if ($method === PaymentMethod::CashUsd->value) {
+            // Suggest whole dollars covering the balance; change comes back in shillings.
+            $rate = Money::round(setting('currency.usd_rate', 0));
+            $usd = Money::isPositive($rate) ? (string) ceil((float) Money::div(Money::max($remaining, 0), $rate, 4)) : '0';
+            $this->payments[] = ['method' => $method, 'foreign_amount' => (float) $usd, 'amount' => (float) Money::round(Money::mul($usd, $rate)), 'reference' => ''];
+
+            return;
+        }
         $this->payments[] = ['method' => $method, 'amount' => (float) Money::max($remaining, 0), 'reference' => ''];
+    }
+
+    /** Keep the shilling value of a dollar payment in sync (display only; the server recomputes). */
+    public function updatedPayments($value, $key): void
+    {
+        [$index, $field] = array_pad(explode('.', (string) $key), 2, null);
+        if ($field === 'foreign_amount' && isset($this->payments[$index])) {
+            $this->payments[$index]['amount'] = (float) Money::round(Money::mul(Money::round($value ?: 0), Money::round(setting('currency.usd_rate', 0))));
+        }
     }
 
     public function removePayment(int $index): void
@@ -709,10 +727,12 @@ class Terminal extends Component
             'customer' => $sale->customer?->name,
             'phone' => $sale->customer?->phone,
             'receipt' => route('receipts.show', $sale),
+            'whatsapp' => app(ShareService::class)->saleLink($sale),
+            'escpos' => setting('receipt.print_mode') === 'escpos' ? route('receipts.escpos', $sale) : null,
         ];
         $this->clearCart();
         $this->modal = null;
-        $this->dispatch('sale-completed', receipt: $this->completed['receipt'], autoPrint: (bool) setting('receipt.auto_print'));
+        $this->dispatch('sale-completed', receipt: $this->completed['receipt'], escpos: $this->completed['escpos'], autoPrint: (bool) setting('receipt.auto_print'));
     }
 
     public function newSale(): void
@@ -782,7 +802,7 @@ class Terminal extends Component
     {
         $totals = $this->totals;
         $paid = $this->paidAmount();
-        $cashPaid = Money::sum(collect($this->payments)->where('method', 'cash'), 'amount');
+        $cashPaid = Money::sum(collect($this->payments)->whereIn('method', ['cash', 'cash_usd']), 'amount');
         $nonCash = Money::sub($paid, $cashPaid);
         $change = Money::max(Money::sub($paid, $totals['total']), 0);
         $change = Money::min($change, $cashPaid);

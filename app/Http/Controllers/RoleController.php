@@ -12,7 +12,7 @@ class RoleController extends Controller
 {
     public function index(): View
     {
-        abort_unless(auth()->user()->can('roles.manage'), 403);
+        $this->authorize('roles.manage');
         $roles = Role::query()->withCount(['permissions', 'users'])->orderBy('name')->get();
 
         return view('roles.index', compact('roles'));
@@ -20,7 +20,7 @@ class RoleController extends Controller
 
     public function create(): View
     {
-        abort_unless(auth()->user()->can('roles.manage'), 403);
+        $this->authorize('roles.manage');
 
         return view('roles.form', ['role' => new Role, 'assigned' => []]);
     }
@@ -37,7 +37,7 @@ class RoleController extends Controller
 
     public function edit(Role $role): View
     {
-        abort_unless(auth()->user()->can('roles.manage'), 403);
+        $this->authorize('roles.manage');
 
         return view('roles.form', ['role' => $role, 'assigned' => $role->permissions->pluck('name')->all()]);
     }
@@ -60,7 +60,7 @@ class RoleController extends Controller
 
     public function destroy(Role $role): RedirectResponse
     {
-        abort_unless(auth()->user()->can('roles.manage'), 403);
+        $this->authorize('roles.manage');
         if (in_array($role->name, array_keys(config('dukapos.roles')), true)) {
             return back()->with('error', __('Built-in roles cannot be deleted.'));
         }

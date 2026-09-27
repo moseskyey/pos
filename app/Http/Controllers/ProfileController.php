@@ -2,14 +2,19 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\CurrentPasswordRequest;
+use App\Http\Requests\LocaleRequest;
+use App\Http\Requests\PinRequest;
 use App\Http\Requests\ProfileRequest;
+use App\Http\Requests\ThemeRequest;
+use App\Http\Requests\TwoFactorCodeRequest;
+use App\Http\Requests\UpdatePasswordRequest;
+use App\Http\Requests\UpdatePinRequest;
 use App\Support\QrCode;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Validation\Rule;
-use Illuminate\Validation\Rules\Password;
 use Illuminate\View\View;
 use PragmaRX\Google2FA\Google2FA;
 
@@ -39,58 +44,48 @@ class ProfileController extends Controller
         return back()->with('success', __('Profile updated.'));
     }
 
-    public function password(Request $request): RedirectResponse
+    public function password(UpdatePasswordRequest $request): RedirectResponse
     {
-        $request->validateWithBag('password', [
-            'current_password' => ['required', 'current_password'],
-            'password' => ['required', 'confirmed', Password::min(8)],
-        ]);
         $request->user()->update(['password' => $request->input('password')]);
         activity('auth')->performedOn($request->user())->log('Password changed');
 
         return back()->with('success', __('Password changed.'));
     }
 
-    public function pin(Request $request): RedirectResponse
+    public function pin(UpdatePinRequest $request): RedirectResponse
     {
-        $request->validateWithBag('pin', [
-            'current_password' => ['required', 'current_password'],
-            'pin' => ['required', 'digits_between:4,6', 'confirmed'],
-        ]);
         $request->user()->setPin($request->input('pin'));
         activity('auth')->performedOn($request->user())->log('PIN changed');
 
         return back()->with('success', __('PIN updated.'));
     }
 
-    public function theme(Request $request): JsonResponse
+    public function theme(ThemeRequest $request): JsonResponse
     {
-        $data = $request->validate(['theme' => ['required', Rule::in(['light', 'dark'])]]);
+        $data = $request->validated();
         $request->user()->forceFill(['theme' => $data['theme']])->saveQuietly();
 
         return response()->json(['ok' => true]);
     }
 
-    public function locale(Request $request): RedirectResponse
+    public function locale(LocaleRequest $request): RedirectResponse
     {
-        $data = $request->validate(['locale' => ['required', Rule::in(['en', 'sw'])]]);
+        $data = $request->validated();
         $request->session()->put('locale', $data['locale']);
         $request->user()?->forceFill(['locale' => $data['locale']])->saveQuietly();
 
         return back();
     }
 
-    public function enableTwoFactor(Request $request, Google2FA $google2fa): RedirectResponse
+    public function enableTwoFactor(CurrentPasswordRequest $request, Google2FA $google2fa): RedirectResponse
     {
-        $request->validate(['current_password' => ['required', 'current_password']]);
         $request->session()->put('2fa_setup_secret', $google2fa->generateSecretKey());
 
         return back()->with('info', __('Scan the QR code with your authenticator app, then enter the code to confirm.'));
     }
 
-    public function confirmTwoFactor(Request $request, Google2FA $google2fa): RedirectResponse
+    public function confirmTwoFactor(TwoFactorCodeRequest $request, Google2FA $google2fa): RedirectResponse
     {
-        $request->validate(['code' => ['required', 'digits:6']]);
         $secret = $request->session()->get('2fa_setup_secret');
         abort_unless($secret, 400);
 
@@ -105,18 +100,16 @@ class ProfileController extends Controller
         return back()->with('success', __('Two-factor authentication enabled.'));
     }
 
-    public function disableTwoFactor(Request $request): RedirectResponse
+    public function disableTwoFactor(CurrentPasswordRequest $request): RedirectResponse
     {
-        $request->validate(['current_password' => ['required', 'current_password']]);
         $request->user()->forceFill(['two_factor_secret' => null, 'two_factor_confirmed_at' => null])->save();
         activity('auth')->performedOn($request->user())->log('Two-factor authentication disabled');
 
         return back()->with('success', __('Two-factor authentication disabled.'));
     }
 
-    public function verifyPin(Request $request): JsonResponse
+    public function verifyPin(PinRequest $request): JsonResponse
     {
-        $request->validate(['pin' => ['required', 'digits_between:4,6']]);
         $user = $request->user();
         if ($user->pinLocked()) {
             return response()->json(['ok' => false, 'message' => __('Too many attempts. Sign in again.')], 423);

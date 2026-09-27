@@ -22,6 +22,7 @@ use App\Services\Pos\PriceResolver;
 use App\Support\Money;
 use App\Support\Qty;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -58,8 +59,11 @@ class SaleService
         $priced = [];
         foreach (array_values($lines) as $i => $line) {
             $product = $products->get($line['product_id']);
-            if (! $product || ! $product->is_active || $product->has_variants) {
+            if (! $product || $product->has_variants || (! $product->is_active && ! $this->offline)) {
                 throw new BusinessRuleException(__('A product in the cart is no longer available.'));
+            }
+            if (! $product->is_active) {
+                $this->flagOffline('inactive_product'); // sold offline before it was deactivated
             }
             $qty = Qty::round($line['qty'] ?? 0);
             if (! Qty::isPositive($qty)) {
@@ -117,13 +121,54 @@ class SaleService
      * @param  array<int, array{method: string, amount: mixed, reference?: ?string}>  $payments
      * @param  array<string, int>  $approvals  action => approver user id (verified by the caller via manager PIN)
      */
+    /**
+     * Offline context while recording a sale made without a connection: the
+     * goods have already left the shop, so rules that would normally stop a
+     * sale for a manager's PIN are recorded as review flags instead.
+     *
+     * @var array{sold_at: Carbon, flags: array<int, string>}|null
+     */
+    protected ?array $offline = null;
+
+    /** Record a sale that happened while the till was offline (idempotent on $clientId). */
+    public function recordOffline(array $cart, array $payments, User $cashier, Shift $shift, string $clientId, Carbon $soldAt): Sale
+    {
+        if ($existing = Sale::withoutGlobalScopes()->where('idempotency_key', $clientId)->first()) {
+            return $existing;
+        }
+        // Clamp the device clock to the shift and to now.
+        $soldAt = $soldAt->copy()->max($shift->opened_at)->min(now());
+        $this->offline = ['sold_at' => $soldAt, 'flags' => []];
+        try {
+            $cart['lines'] = array_map(fn ($l) => $l + ['price_override' => true], $cart['lines'] ?? []);
+            $sale = $this->checkout($cart, $payments, $cashier, $shift, $clientId);
+            $flags = array_values(array_unique($this->offline['flags']));
+            $sale->forceFill(['created_at' => $soldAt, 'synced_at' => now(), 'review_flags' => $flags ?: null])->save();
+            $sale->payments()->update(['created_at' => $soldAt]);
+            activity('sales')->causedBy($cashier)->performedOn($sale)
+                ->withProperties(['sold_at' => $soldAt->toIso8601String(), 'flags' => $flags])->log('Offline sale synced');
+
+            return $sale;
+        } finally {
+            $this->offline = null;
+        }
+    }
+
+    protected function flagOffline(string $flag): void
+    {
+        $this->offline['flags'][] = $flag;
+    }
+
     public function checkout(array $cart, array $payments, User $cashier, Shift $shift, string $idempotencyKey, array $approvals = [], string $status = 'completed'): Sale
     {
         if ($existing = Sale::withoutGlobalScopes()->where('idempotency_key', $idempotencyKey)->first()) {
             return $existing;
         }
-        if (! $shift->isOpen() || $shift->user_id !== $cashier->id) {
+        if ($shift->user_id !== $cashier->id || (! $shift->isOpen() && ! $this->offline)) {
             throw new BusinessRuleException(__('Open a shift before selling.'));
+        }
+        if ($this->offline && ! $shift->isOpen()) {
+            $this->flagOffline('shift_closed');
         }
 
         $sale = DB::transaction(function () use ($cart, $payments, $cashier, $shift, $idempotencyKey, $approvals, $status) {
@@ -178,13 +223,13 @@ class SaleService
                 'cart_discount_value' => $cart['cart_discount_value'] ?? null,
                 'note' => $cart['note'] ?? null,
                 'idempotency_key' => $idempotencyKey,
-                'completed_at' => $status === 'completed' ? now() : null,
+                'completed_at' => $status === 'completed' ? ($this->offline['sold_at'] ?? now()) : null,
                 'loyalty_redeemed' => $redeemPoints,
             ]);
 
             // Items + stock ---------------------------------------------------
             $policy = setting('pos.negative_stock', 'block');
-            $allowNegative = $policy === 'allow' || ($policy === 'warn' && ($cashier->can('sales.negative_stock') || isset($approvals['negative_stock'])));
+            $allowNegative = $this->offline !== null || $policy === 'allow' || ($policy === 'warn' && ($cashier->can('sales.negative_stock') || isset($approvals['negative_stock'])));
             foreach ($lines as $key => $line) {
                 $calc = $totals['lines'][$key];
                 $item = $sale->items()->create([
@@ -210,6 +255,9 @@ class SaleService
                     'line_total' => $calc['line_total'],
                 ]);
 
+                if ($this->offline && $line['product']->track_stock && Qty::lt($this->stock->available($sale->branch_id, $line['product']->id), $line['base_qty'])) {
+                    $this->flagOffline('negative_stock');
+                }
                 try {
                     $movements = $this->stock->issue($sale->branch_id, $line['product'], $line['base_qty'], MovementType::Sale, $sale, $allowNegative);
                 } catch (InsufficientStockException $e) {
@@ -388,6 +436,11 @@ class SaleService
         if ($user->can($permission)) {
             return;
         }
+        if ($this->offline) {
+            $this->flagOffline($action);
+
+            return;
+        }
         $approverId = $approvals[$action] ?? null;
         $approver = $approverId ? User::find($approverId) : null;
         if (! $approver || ! $approver->can($permission)) {
@@ -436,7 +489,9 @@ class SaleService
             $calc = $totals['lines'][$key];
             $netUnit = Money::div(Money::sub($calc['net_total'], setting('tax.prices_include_vat', true) ? $calc['tax_amount'] : 0), $line['qty']);
             if (Money::lt($netUnit, $line['unit_cost'])) {
-                if ($policy === 'block') {
+                if ($policy === 'block' && $this->offline) {
+                    $this->flagOffline('below_cost');
+                } elseif ($policy === 'block') {
                     throw new BusinessRuleException(__(':p cannot be sold below cost.', ['p' => $line['product']->name]));
                 }
                 $this->authorize($user, 'sales.below_cost', $approvals, 'below_cost', __(':p is below cost. Manager approval required.', ['p' => $line['product']->name]));
@@ -457,11 +512,24 @@ class SaleService
         $storeCredit = '0.00';
         $enabled = collect(PaymentMethod::enabled())->map->value->all();
 
-        // Non-cash first so cash absorbs change.
-        usort($payments, fn ($a, $b) => ($a['method'] === 'cash') <=> ($b['method'] === 'cash'));
+        // Non-cash first so cash absorbs change (USD before TZS cash).
+        $rank = fn ($p) => match ($p['method'] ?? null) {
+            'cash' => 2, 'cash_usd' => 1, default => 0
+        };
+        usort($payments, fn ($a, $b) => $rank($a) <=> $rank($b));
 
         foreach ($payments as $payment) {
             $method = PaymentMethod::tryFrom($payment['method'] ?? '');
+            $foreign = null;
+            if ($method?->isForeign()) {
+                // Dollars are converted server-side at the configured rate; the client TZS amount is ignored.
+                $foreign = Money::round($payment['foreign_amount'] ?? 0);
+                $rate = Money::round(setting('currency.usd_rate', 0));
+                if (Money::isPositive($foreign) && ! Money::isPositive($rate)) {
+                    throw new BusinessRuleException(__('Set the USD exchange rate in Settings first.'));
+                }
+                $payment['amount'] = Money::round(Money::mul($foreign, $rate));
+            }
             $amount = Money::round($payment['amount'] ?? 0);
             if (! $method || ! Money::isPositive($amount)) {
                 continue;
@@ -470,7 +538,7 @@ class SaleService
                 throw new BusinessRuleException(__(':m payments are disabled.', ['m' => $method->label()]));
             }
 
-            if ($method === PaymentMethod::Cash) {
+            if ($method->isCash()) {
                 $tendered = Money::add($tendered, $amount);
                 $applied = Money::min($amount, $remaining);
                 $change = Money::add($change, Money::sub($amount, $applied));
@@ -490,7 +558,10 @@ class SaleService
                 $payment['reference'] = $intent->provider_reference ?? $intent->reference;
             }
             if ($method->isMobileMoney() && empty($payment['reference'])) {
-                throw new BusinessRuleException(__('Enter the :m transaction reference.', ['m' => $method->label()]));
+                if (! $this->offline) {
+                    throw new BusinessRuleException(__('Enter the :m transaction reference.', ['m' => $method->label()]));
+                }
+                $this->flagOffline('missing_reference');
             }
             if ($method === PaymentMethod::Credit) {
                 if (! $customer) {
@@ -518,14 +589,22 @@ class SaleService
                 'gateway_status' => $intent?->status,
                 'gateway_reference' => $intent?->provider_reference,
                 'intent' => $intent,
-                'meta' => $method === PaymentMethod::Cash ? ['tendered' => $payment['amount'], 'change' => Money::sub($payment['amount'], $amount)] : null,
+                'meta' => match (true) {
+                    $method->isForeign() => ['currency' => 'USD', 'foreign_amount' => $foreign, 'rate' => Money::round(setting('currency.usd_rate')),
+                        'tendered' => Money::round($payment['amount']), 'change' => Money::sub($payment['amount'], $amount)],
+                    $method === PaymentMethod::Cash => ['tendered' => $payment['amount'], 'change' => Money::sub($payment['amount'], $amount)],
+                    default => null,
+                },
             ];
             $remaining = Money::sub($remaining, $amount);
         }
 
         $paid = Money::sub($total, $remaining);
         if ($status === 'completed' && Money::isPositive($remaining)) {
-            throw new BusinessRuleException(__('Payment is short by :amount.', ['amount' => money($remaining)]));
+            if (! $this->offline) {
+                throw new BusinessRuleException(__('Payment is short by :amount.', ['amount' => money($remaining)]));
+            }
+            $this->flagOffline('short_paid'); // kept as balance due for a manager to resolve
         }
         if ($status === 'layaway' && ! $customer) {
             throw new BusinessRuleException(__('Select a registered customer for layaway.'));
