@@ -15,7 +15,7 @@ class ReceiptService
 {
     public function data(Sale $sale): array
     {
-        $sale->loadMissing(['items', 'payments', 'customer', 'cashier', 'branch', 'register']);
+        $sale->loadMissing(['items.serials', 'payments', 'customer', 'cashier', 'branch', 'register']);
         $branch = $sale->branch;
         $taxBreakdown = $sale->items->groupBy(fn ($i) => (string) (float) $i->tax_rate)
             ->map(fn ($items, $rate) => [

@@ -72,8 +72,9 @@
                             <div class="thumb">
                                 @if ($p->image_path)<img src="{{ $p->imageUrl() }}" alt="" loading="lazy">@else<i class="bi bi-box-seam"></i>@endif
                             </div>
-                            <div class="name">{{ $p->name }}</div>
-                            <div class="price">{{ money($p->retail_price) }}</div>
+                            <div class="name">{{ $p->name }} @if ($p->requires_prescription && feature('pharmacy'))<span class="badge text-bg-danger-soft">Rx</span>@endif</div>
+                            @if ($p->generic_name && feature('pharmacy'))<div class="small text-body-secondary text-truncate">{{ $p->generic_name }} {{ $p->strength }}</div>@endif
+                            <div class="price">{{ money($p->display_price ?? $p->retail_price) }}</div>
                             @if ($p->available !== null)
                                 <span class="stock badge rounded-pill {{ $out ? 'text-bg-danger' : ($p->available <= $p->reorder_level ? 'text-bg-warning' : 'text-bg-light border') }}">{{ qty($p->available) }}</span>
                             @endif
@@ -143,7 +144,7 @@
                             <div class="cart-line {{ $selectedLine === $key ? 'selected' : '' }}" wire:key="line-{{ $key }}" wire:click="selectLine('{{ $key }}')">
                                 <div class="d-flex justify-content-between gap-2">
                                     <div class="min-w-0">
-                                        <div class="line-name text-truncate">{{ $line['name'] }}</div>
+                                        <div class="line-name text-truncate">{{ $line['name'] }} @if (! empty($line['rx']))<span class="badge text-bg-danger-soft" title="{{ __('Prescription needed') }}">Rx</span>@endif</div>
                                         <div class="small text-body-secondary">
                                             {{ money($line['unit_price']) }} / {{ $line['unit'] }}
                                             @if ($line['tier'] === 'wholesale')<span class="badge text-bg-info-soft">{{ __('Wholesale') }}</span>@endif
@@ -152,6 +153,19 @@
                                         </div>
                                         @if ($calc && $calc['promo_discount'] > 0 && ! empty($line['promo_name']))
                                             <div class="small text-success text-truncate"><i class="bi bi-megaphone" aria-hidden="true"></i> {{ $line['promo_name'] }} <span class="text-money">−{{ money($calc['promo_discount'], false) }}</span></div>
+                                        @endif
+                                        @if (! empty($line['serialized']))
+                                            <div class="mt-1" wire:click.stop>
+                                                <div class="d-flex flex-wrap gap-1 mb-1">
+                                                    @foreach ($line['serials'] as $si => $serial)
+                                                        <span class="badge text-bg-secondary-soft font-monospace">{{ $serial }}
+                                                            <button type="button" class="btn-close btn-close-sm ms-1" style="font-size:.5rem" wire:click="removeSerial('{{ $key }}', {{ $si }})" aria-label="{{ __('Remove :s', ['s' => $serial]) }}"></button></span>
+                                                    @endforeach
+                                                </div>
+                                                <input type="text" class="form-control form-control-sm font-monospace {{ count($line['serials']) !== (int) $line['qty'] ? 'is-invalid' : 'is-valid' }}"
+                                                       placeholder="{{ __('Scan serial / IMEI (:n of :q)', ['n' => count($line['serials']), 'q' => qty($line['qty'])]) }}" aria-label="{{ __('Serial / IMEI for :p', ['p' => $line['name']]) }}"
+                                                       wire:keydown.enter.prevent="addSerial('{{ $key }}', $event.target.value)" x-on:keydown.enter="$nextTick(() => $el.value = '')" autocomplete="off">
+                                            </div>
                                         @endif
                                     </div>
                                     <div class="fw-bold text-money text-end">{{ money($calc['line_total'] ?? 0) }}</div>
@@ -353,6 +367,12 @@
                                                     @if (isset($p['gift_balance']))
                                                         <div class="small text-success mt-1"><i class="bi bi-check-circle"></i> {{ __('Balance: :b', ['b' => money($p['gift_balance'])]) }}</div>
                                                     @endif
+                                                @elseif ($method === \App\Enums\PaymentMethod::Cheque)
+                                                    <input type="text" class="form-control" wire:model="payments.{{ $i }}.reference" placeholder="{{ __('Cheque number') }}" aria-label="{{ __('Cheque number') }}">
+                                                    <div class="input-group input-group-sm mt-1">
+                                                        <input type="text" class="form-control" wire:model="payments.{{ $i }}.bank" placeholder="{{ __('Bank') }}" aria-label="{{ __('Bank') }}">
+                                                        <input type="date" class="form-control" wire:model="payments.{{ $i }}.cheque_date" aria-label="{{ __('Cheque date') }}" title="{{ __('Cheque date (post-dated if in the future)') }}">
+                                                    </div>
                                                 @elseif ($method->needsReference())
                                                     <input type="text" class="form-control" wire:model="payments.{{ $i }}.reference" placeholder="{{ $method->isMobileMoney() ? __('Transaction ID, e.g. SGH7K2L9QX') : __('Reference') }}" aria-label="{{ __('Reference') }}">
                                                     @if ($method->isMobileMoney() && $supportsPush)
@@ -400,6 +420,15 @@
                                 <div class="col-4"><div class="small text-body-secondary">{{ __('Remaining') }}</div><div class="fs-5 fw-bold text-money {{ $remaining > 0 ? 'text-danger' : '' }}">{{ money($remaining) }}</div></div>
                                 <div class="col-4 text-end"><div class="small text-body-secondary">{{ __('Change') }}</div><div class="change-due text-success text-money">{{ money($change) }}</div></div>
                             </div>
+                            @if (collect($cart)->contains(fn ($l) => ! empty($l['rx'])))
+                                <div class="alert alert-danger-subtle border-danger-subtle mt-3 mb-0 py-2">
+                                    <div class="small fw-semibold mb-1"><i class="bi bi-capsule"></i> {{ __('Prescription needed for Rx items') }}</div>
+                                    <div class="row g-2">
+                                        <div class="col-md-6"><input type="text" class="form-control form-control-sm" wire:model="prescriptionRef" placeholder="{{ __('Prescription number') }}" aria-label="{{ __('Prescription number') }}"></div>
+                                        <div class="col-md-6"><input type="text" class="form-control form-control-sm" wire:model="prescriber" placeholder="{{ __('Prescriber / hospital (optional)') }}" aria-label="{{ __('Prescriber') }}"></div>
+                                    </div>
+                                </div>
+                            @endif
                             <input type="text" class="form-control form-control-sm mt-3" wire:model="note" placeholder="{{ __('Note on receipt (optional)') }}">
                         </div>
                         <div class="modal-footer">

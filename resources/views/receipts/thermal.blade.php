@@ -42,6 +42,9 @@
                 <td>{{ qty($item->quantity) }} {{ $item->unit_name }} × {{ money($item->unit_price, false) }}</td>
                 <td class="right">{{ money(\App\Support\Money::mul($item->quantity, $item->unit_price), false) }}</td>
             </tr>
+            @if ($item->relationLoaded('serials') && $item->serials->isNotEmpty())
+                <tr><td colspan="2">&nbsp;&nbsp;S/N: {{ $item->serials->pluck('serial')->join(', ') }}@if ($item->serials->first()->warranty_until)<br>&nbsp;&nbsp;{{ __('Warranty until :d', ['d' => format_date($item->serials->first()->warranty_until)]) }}@endif</td></tr>
+            @endif
             @if ($item->promo_discount > 0)
                 <tr><td>&nbsp;&nbsp;{{ $item->promotion_name ?: __('Promotion') }}</td><td class="right">-{{ money($item->promo_discount, false) }}</td></tr>
             @endif
@@ -76,6 +79,7 @@
     @if ($sale->customer && setting('loyalty.enabled') && ($sale->loyalty_earned || $sale->loyalty_redeemed))
         <hr><div class="center">{{ __('Points earned: :e · redeemed: :r · balance: :b', ['e' => $sale->loyalty_earned, 'r' => $sale->loyalty_redeemed, 'b' => $sale->customer->loyalty_points]) }}</div>
     @endif
+    @if ($sale->prescription_ref)<hr><div>Rx: {{ $sale->prescription_ref }}@if ($sale->prescriber) · {{ $sale->prescriber }}@endif</div>@endif
     @if ($sale->note)<hr><div>{{ $sale->note }}</div>@endif
     @if ($sale->status->value === 'voided')<hr><div class="center bold big">*** {{ __('VOIDED') }} ***</div>@endif
     <hr>

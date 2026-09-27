@@ -8,10 +8,12 @@ use App\Enums\SaleStatus;
 use App\Exceptions\ApprovalRequiredException;
 use App\Exceptions\BusinessRuleException;
 use App\Livewire\Concerns\RequiresApproval;
+use App\Models\BranchPrice;
 use App\Models\Category;
 use App\Models\Customer;
 use App\Models\PaymentIntent;
 use App\Models\Product;
+use App\Models\ProductSerial;
 use App\Models\ProductUnit;
 use App\Models\Register;
 use App\Models\Sale;
@@ -58,6 +60,10 @@ class Terminal extends Component
     public ?string $selectedLine = null;
 
     public string $note = '';
+
+    public string $prescriptionRef = '';
+
+    public string $prescriber = '';
 
     #[Locked]
     public string $idempotencyKey = '';
@@ -192,6 +198,10 @@ class Terminal extends Component
         $branchId = $this->shift?->branch_id;
         $stock = $branchId ? app(StockService::class)->availableMany($branchId, $products->pluck('id')->all()) : [];
         $products->each(fn ($p) => $p->setAttribute('available', $p->track_stock ? (float) ($stock[$p->id] ?? 0) : null));
+        $branchPrices = $branchId && feature('branch_prices')
+            ? BranchPrice::query()->where('branch_id', $branchId)->whereNull('product_unit_id')->whereIn('product_id', $products->pluck('id'))->pluck('retail_price', 'product_id')
+            : collect();
+        $products->each(fn ($p) => $p->setAttribute('display_price', (float) ($branchPrices[$p->id] ?? $p->retail_price)));
 
         return $products;
     }
@@ -206,6 +216,20 @@ class Terminal extends Component
         $match = app(ProductService::class)->findByBarcode($term);
         if ($match) {
             $this->addLine($match['product']->id, $match['unit']?->id, $match['quantity'], $match['quantity'] !== null ? $term : null);
+            $this->search = '';
+            unset($this->products);
+
+            return;
+        }
+        // Scanning a phone's IMEI / an appliance serial adds that exact unit.
+        if (feature('serials') && ($serial = ProductSerial::query()->where('serial', ProductSerial::normalize($term))->where('status', 'in_stock')->first())) {
+            $key = collect($this->cart)->search(fn ($l) => $l['product_id'] === $serial->product_id && empty($l['product_unit_id']));
+            if ($key === false) {
+                $this->addLine($serial->product_id);
+                $key = array_key_last($this->cart);
+                $this->cart[$key]['qty'] = 0;
+            }
+            $this->addSerial($key, $serial->serial);
             $this->search = '';
             unset($this->products);
 
@@ -273,6 +297,9 @@ class Terminal extends Component
             'tier' => 'retail',
             'promo_discount' => 0,
             'promo_name' => null,
+            'serialized' => $product->track_serials && feature('serials'),
+            'serials' => [],
+            'rx' => $product->requires_prescription && feature('pharmacy'),
             'price_override' => false,
             'scale_barcode' => $scaleBarcode,
             'discount_type' => null,
@@ -328,6 +355,49 @@ class Terminal extends Component
         $this->reprice($key);
     }
 
+    /** Add a scanned or typed serial / IMEI to a line; the quantity follows the number of serials. */
+    public function addSerial(string $key, string $serial): void
+    {
+        if (! isset($this->cart[$key]) || empty($this->cart[$key]['serialized'])) {
+            return;
+        }
+        $serial = ProductSerial::normalize($serial);
+        if ($serial === '') {
+            return;
+        }
+        if (collect($this->cart)->contains(fn ($l) => in_array($serial, $l['serials'] ?? [], true))) {
+            $this->dispatch('toast', message: __('Serial :s is already in the cart.', ['s' => $serial]), type: 'warning');
+
+            return;
+        }
+        $known = ProductSerial::withoutGlobalScopes()->where('product_id', $this->cart[$key]['product_id'])->where('serial', $serial)->first();
+        $problem = match (true) {
+            $known && $known->status === 'sold' => __('Serial :s was already sold.', ['s' => $serial]),
+            $known && $known->status === 'defective' => __('Serial :s is marked defective.', ['s' => $serial]),
+            $known && $known->branch_id !== app(BranchContext::class)->currentId() => __('Serial :s is in stock at another branch.', ['s' => $serial]),
+            default => null,
+        };
+        if ($problem) {
+            $this->dispatch('scan-fail');
+            $this->dispatch('toast', message: $problem, type: 'error');
+
+            return;
+        }
+        $this->cart[$key]['serials'][] = $serial;
+        $this->cart[$key]['qty'] = (float) max((float) $this->cart[$key]['qty'], count($this->cart[$key]['serials']));
+        $this->reprice($key);
+        $this->dispatch('scan-ok');
+    }
+
+    public function removeSerial(string $key, int $index): void
+    {
+        if (! isset($this->cart[$key]['serials'][$index])) {
+            return;
+        }
+        unset($this->cart[$key]['serials'][$index]);
+        $this->cart[$key]['serials'] = array_values($this->cart[$key]['serials']);
+    }
+
     public function removeLine(string $key): void
     {
         unset($this->cart[$key]);
@@ -357,6 +427,8 @@ class Terminal extends Component
         $this->loyaltyPoints = 0;
         $this->selectedLine = null;
         $this->note = '';
+        $this->prescriptionRef = '';
+        $this->prescriber = '';
         $this->approvals = [];
         $this->payments = [];
         $this->quotationId = null;
@@ -852,6 +924,7 @@ class Terminal extends Component
                 'unit_price' => $l['unit_price'],
                 'price_override' => $l['price_override'],
                 'scale_barcode' => $l['scale_barcode'] ?? null,
+                'serials' => $l['serials'] ?? [],
                 'discount_type' => $l['discount_type'],
                 'discount_value' => $l['discount_value'],
             ], $this->cart)),
@@ -860,6 +933,8 @@ class Terminal extends Component
             'cart_discount_value' => $this->cartDiscountValue,
             'loyalty_points' => $this->loyaltyPoints,
             'note' => $this->note ?: null,
+            'prescription_ref' => $this->prescriptionRef ?: null,
+            'prescriber' => $this->prescriber ?: null,
         ];
     }
 

@@ -128,6 +128,7 @@ class SaleService
                 'tier' => $tier,
                 'promo_discount' => $promo['discount'],
                 'promotion' => $promo['promotion'],
+                'serials' => array_values((array) ($line['serials'] ?? [])),
                 'discount_type' => in_array($line['discount_type'] ?? null, ['percent', 'fixed'], true) ? $line['discount_type'] : null,
                 'discount_value' => $line['discount_value'] ?? null,
                 'tax_type' => $product->tax_type->value,
@@ -203,6 +204,7 @@ class SaleService
             }
 
             ['lines' => $lines] = $this->priceLines($cart['lines'], $customer, $cashier, $approvals, $shift->branch_id);
+            $this->checkPrescription($lines, $cart);
 
             // Loyalty redemption is applied as an extra fixed cart discount.
             $redeemPoints = 0;
@@ -250,6 +252,8 @@ class SaleService
                 'cart_discount_type' => $cart['cart_discount_type'] ?? null,
                 'cart_discount_value' => $cart['cart_discount_value'] ?? null,
                 'note' => $cart['note'] ?? null,
+                'prescription_ref' => filled($cart['prescription_ref'] ?? null) ? Str::limit(trim($cart['prescription_ref']), 60, '') : null,
+                'prescriber' => filled($cart['prescriber'] ?? null) ? Str::limit(trim($cart['prescriber']), 120, '') : null,
                 'idempotency_key' => $idempotencyKey,
                 'completed_at' => $status === 'completed' ? ($this->offline['sold_at'] ?? now()) : null,
                 'loyalty_redeemed' => $redeemPoints,
@@ -320,6 +324,9 @@ class SaleService
                     if ($movements->isNotEmpty() && Qty::isPositive($line['base_qty'])) {
                         $item->update(['cost_price' => Money::mul(Money::div($movementCost($movements), $line['base_qty']), $line['factor'])]);
                     }
+                    if ($line['product']->track_serials && feature('serials') && $status === 'completed') {
+                        app(SerialService::class)->sell($sale, $item, $line['product'], $line['serials'], Carbon::parse($sale->completed_at ?? now()), $this->offline !== null);
+                    }
                 }
             }
 
@@ -327,8 +334,12 @@ class SaleService
             foreach ($paymentRows as $row) {
                 $intent = $row['intent'] ?? null;
                 unset($row['intent']);
-                $sale->payments()->create($row + ['branch_id' => $sale->branch_id, 'shift_id' => $shift->id, 'received_by' => $cashier->id]);
+                $salePayment = $sale->payments()->create($row + ['branch_id' => $sale->branch_id, 'shift_id' => $shift->id, 'received_by' => $cashier->id]);
                 $intent?->update(['sale_id' => $sale->id]);
+                if ($row['method'] === PaymentMethod::Cheque->value) {
+                    app(ChequeService::class)->record('received', ['number' => $row['reference'], 'bank' => $row['meta']['bank'] ?? null, 'cheque_date' => $row['meta']['cheque_date'] ?? null],
+                        $row['amount'], $sale->branch_id, $salePayment, $customer);
+                }
                 if ($row['method'] === PaymentMethod::GiftCard->value && ! empty($row['meta']['gift_card_id'])) {
                     app(GiftCardService::class)->redeem($row['meta']['gift_card_id'], $row['amount'], $sale, $cashier);
                 }
@@ -464,6 +475,8 @@ class SaleService
             }
 
             app(GiftCardService::class)->restoreForSale($sale, $approver);
+            app(SerialService::class)->restoreForVoid($sale);
+            app(ChequeService::class)->cancelForSale($sale, $approver);
 
             if ($sale->customer_id) {
                 $customer = Customer::withTrashed()->find($sale->customer_id);
@@ -669,6 +682,7 @@ class SaleService
                         'tendered' => Money::round($payment['amount']), 'change' => Money::sub($payment['amount'], $amount)],
                     $method === PaymentMethod::Cash => ['tendered' => $payment['amount'], 'change' => Money::sub($payment['amount'], $amount)],
                     $method === PaymentMethod::GiftCard => ['gift_card_id' => $giftCard?->id],
+                    $method === PaymentMethod::Cheque => ['bank' => $payment['bank'] ?? null, 'cheque_date' => $payment['cheque_date'] ?? null],
                     default => null,
                 },
             ];
@@ -687,6 +701,24 @@ class SaleService
         }
 
         return [$rows, $paid, $tendered, $change, $credit, $storeCredit];
+    }
+
+    /** Prescription-only items need the prescription number (Settings → Features → Pharmacy). */
+    protected function checkPrescription(array $lines, array $cart): void
+    {
+        if (! feature('pharmacy') || filled($cart['prescription_ref'] ?? null)) {
+            return;
+        }
+        $rx = collect($lines)->first(fn ($l) => $l['product']->requires_prescription);
+        if (! $rx) {
+            return;
+        }
+        if ($this->offline) {
+            $this->flagOffline('prescription');
+
+            return;
+        }
+        throw new BusinessRuleException(__(':p needs a prescription. Enter the prescription number.', ['p' => $rx['product']->name]));
     }
 
     /** Current cost of one bundle: the sum of its components' costs. */

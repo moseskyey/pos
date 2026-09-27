@@ -38,6 +38,7 @@ class Navigation
                 ['Transfers', 'bi-truck', 'transfers.index', ['stock.transfer', 'stock.transfer.approve'], 'transfers.*', 'transfers'],
                 ['Stock Takes', 'bi-clipboard-check', 'stock-takes.index', ['stock.take', 'stock.take.approve'], 'stock-takes.*', 'stock_takes'],
                 ['Batches & Expiry', 'bi-calendar2-x', 'batches.index', 'stock.view', 'batches.*', 'batches'],
+                ['Serial Numbers', 'bi-upc-scan', 'serials.index', ['stock.view', 'sales.view', 'sales.view_all'], 'serials.*', 'serials'],
             ]],
             ['Purchases', [
                 ['Suppliers', 'bi-building', 'suppliers.index', 'suppliers.view', 'suppliers.*'],
@@ -51,6 +52,7 @@ class Navigation
                 ['Customers', 'bi-people', 'customers.index', 'customers.view', 'customers.*'],
                 ['Payments', 'bi-wallet2', 'customer-payments.index', 'customers.payments', 'customer-payments.*'],
                 ['Gift Cards', 'bi-gift', 'gift-cards.index', 'gift_cards.manage', 'gift-cards.*', 'gift_cards'],
+                ['Cheques', 'bi-bank2', 'cheques.index', 'cheques.manage', 'cheques.*', 'cheques'],
             ]],
             ['Expenses', [
                 ['Expenses', 'bi-credit-card-2-back', 'expenses.index', 'expenses.view', 'expenses.*', 'expenses'],

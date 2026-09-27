@@ -50,6 +50,18 @@
         @endif
         <div class="col-sm-6 col-xl-3"><x-stat-card :label="__('Stock (all branches)')" :value="$product->track_stock ? qty($product->has_variants ? $product->variants->sum('stock_qty') : $totalStock).' '.$product->unit?->short_name : __('Not tracked')" icon="bi-stack" color="info" /></div>
         <div class="col-sm-6 col-xl-3"><x-stat-card :label="__('Reorder level')" :value="qty($product->reorder_level).' '.$product->unit?->short_name" icon="bi-bell" color="danger" /></div>
+        @if ($product->track_serials)
+            <div class="col-12">
+                <div class="alert alert-light border d-flex flex-wrap gap-3 align-items-center small mb-0">
+                    <span><i class="bi bi-upc-scan"></i> {{ __('Serial numbers') }}:</span>
+                    <span>{{ __('In stock') }} <strong>{{ number_format($serialCounts['in_stock'] ?? 0) }}</strong></span>
+                    <span>{{ __('Sold') }} <strong>{{ number_format($serialCounts['sold'] ?? 0) }}</strong></span>
+                    <span>{{ __('Defective') }} <strong>{{ number_format($serialCounts['defective'] ?? 0) }}</strong></span>
+                    @if ($product->warranty_months)<span>{{ trans_choice(':count month warranty|:count months warranty', $product->warranty_months) }}</span>@endif
+                    @if (feature('serials'))<a href="{{ route('serials.index') }}" class="ms-auto">{{ __('Manage serials') }} →</a>@endif
+                </div>
+            </div>
+        @endif
     </div>
 
     <ul class="nav nav-tabs-modern mb-3" role="tablist">
@@ -63,6 +75,7 @@
         @if ($product->track_batches)<li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-batches" type="button">{{ __('Batches') }} <span class="badge text-bg-secondary-soft">{{ $batches->count() }}</span></button></li>@endif
         @if ($product->is_bundle)<li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-bundle" type="button">{{ __('Bundle items') }} <span class="badge text-bg-secondary-soft">{{ $bundle->count() }}</span></button></li>@endif
         @if ($branchPrices->isNotEmpty())<li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-branch-prices" type="button">{{ __('Branch prices') }}</button></li>@endif
+        @if (! $product->is_bundle && auth()->user()->canAny(['suppliers.view', 'purchases.view']))<li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-suppliers" type="button">{{ __('Suppliers') }} <span class="badge text-bg-secondary-soft">{{ $productSuppliers->count() }}</span></button></li>@endif
         <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-prices" type="button">{{ __('Price history') }}</button></li>
     </ul>
 
@@ -281,6 +294,55 @@
                         @endcan
                     </div>
                 </form>
+            </div>
+        @endif
+
+        @if (! $product->is_bundle && auth()->user()->canAny(['suppliers.view', 'purchases.view']))
+            <div class="tab-pane fade" id="tab-suppliers">
+                <div class="card">
+                    @if ($productSuppliers->isEmpty())
+                        <x-empty-state icon="bi-building" :title="__('No suppliers linked yet')" :message="__('Suppliers are linked automatically when you receive goods, or add one below.')" />
+                    @else
+                        <div class="table-responsive">
+                            <table class="table table-stack align-middle mb-0">
+                                <thead><tr><th>{{ __('Supplier') }}</th><th>{{ __('Their code') }}</th>@if ($canCost)<th class="text-end">{{ __('Last cost') }}</th>@endif<th>{{ __('Last received') }}</th><th>{{ __('Lead time') }}</th><th></th></tr></thead>
+                                <tbody>
+                                @foreach ($productSuppliers as $ps)
+                                    <tr>
+                                        <td data-label="{{ __('Supplier') }}"><a href="{{ route('suppliers.show', $ps->supplier_id) }}">{{ $ps->supplier?->name }}</a>
+                                            @if ($ps->is_preferred)<span class="badge text-bg-primary-soft"><i class="bi bi-star-fill"></i> {{ __('Preferred') }}</span>@endif</td>
+                                        <td data-label="{{ __('Their code') }}" class="font-monospace">{{ $ps->supplier_sku ?: '—' }}</td>
+                                        @if ($canCost)<td data-label="{{ __('Last cost') }}" class="text-end text-money">{{ $ps->last_cost !== null ? money($ps->last_cost) : '—' }}</td>@endif
+                                        <td data-label="{{ __('Last received') }}">{{ $ps->last_received_at ? format_date($ps->last_received_at) : '—' }}</td>
+                                        <td data-label="{{ __('Lead time') }}">{{ $ps->lead_time_days !== null ? trans_choice(':count day|:count days', $ps->lead_time_days) : '—' }}</td>
+                                        <td class="text-end">
+                                            @if ($supplierOptions->isNotEmpty())
+                                                <form method="POST" action="{{ route('products.suppliers.destroy', [$product, $ps]) }}" data-confirm="{{ __('Remove :s from this product?', ['s' => $ps->supplier?->name]) }}">@csrf @method('DELETE')
+                                                    <button class="btn btn-sm btn-light text-danger" aria-label="{{ __('Remove') }}"><i class="bi bi-trash"></i></button>
+                                                </form>
+                                            @endif
+                                        </td>
+                                    </tr>
+                                @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                    @endif
+                    @if ($supplierOptions->isNotEmpty())
+                        <form method="POST" action="{{ route('products.suppliers.store', $product) }}" class="card-body border-top">
+                            @csrf
+                            <div class="row g-2 align-items-end">
+                                <div class="col-md-4"><x-select name="supplier_id" :label="__('Supplier')" :options="$supplierOptions" :placeholder="__('Choose…')" searchable required class="mb-0" /></div>
+                                <div class="col-md-3"><x-input name="supplier_sku" :label="__('Their code')" class="mb-0" /></div>
+                                <div class="col-md-2"><x-input name="lead_time_days" type="number" min="0" :label="__('Lead time')" :suffix="__('days')" class="mb-0" /></div>
+                                <div class="col-md-3 d-flex gap-2 align-items-center">
+                                    <x-toggle name="is_preferred" :label="__('Preferred')" class="mb-0" />
+                                    <button class="btn btn-primary ms-auto"><i class="bi bi-plus-lg"></i> {{ __('Save') }}</button>
+                                </div>
+                            </div>
+                        </form>
+                    @endif
+                </div>
             </div>
         @endif
     </div>

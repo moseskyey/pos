@@ -192,7 +192,8 @@ class PurchaseController extends Controller
             $allocations['from_drawer'] = true;
         }
         try {
-            $service->pay(Supplier::findOrFail($data['supplier_id']), $data['amount'], PaymentMethod::from($data['method']), $request->user(), $branchId, $allocations, $data['reference'] ?? null, $data['note'] ?? null, $data['paid_at']);
+            $service->pay(Supplier::findOrFail($data['supplier_id']), $data['amount'], PaymentMethod::from($data['method']), $request->user(), $branchId, $allocations, $data['reference'] ?? null, $data['note'] ?? null, $data['paid_at'],
+                ['bank' => $data['bank'] ?? null, 'cheque_date' => $data['cheque_date'] ?? null]);
         } catch (BusinessRuleException $e) {
             return back()->withInput()->with('error', $e->getMessage());
         }

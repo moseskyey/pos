@@ -96,6 +96,7 @@ class ReturnService
                     throw new BusinessRuleException(__('Only :q of :p can be returned.', ['q' => qty($item->returnableQuantity()), 'p' => $item->name]));
                 }
                 $condition = ($line['condition'] ?? 'restock') === 'damaged' ? 'damaged' : 'restock';
+                app(SerialService::class)->returnItem($item, $qty, $condition, $line['serials'] ?? null);
                 $unitRefund = Money::div($item->netTotal(), $item->quantity, 4);
                 $lineTotal = Money::mul($unitRefund, $qty);
                 $lineTax = Money::mul(Money::div($item->tax_amount, $item->quantity, 4), $qty);

@@ -21,6 +21,8 @@ class CustomerPaymentRequest extends FormRequest
             'amount' => ['required', 'numeric', 'gt:0'],
             'method' => ['required', Rule::enum(PaymentMethod::class)],
             'reference' => ['nullable', 'string', 'max:100'],
+            'bank' => ['nullable', 'string', 'max:80'],
+            'cheque_date' => ['nullable', 'date'],
             'note' => ['nullable', 'string', 'max:255'],
             'idempotency_key' => ['nullable', 'string', 'max:64'],
         ];

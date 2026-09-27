@@ -106,6 +106,7 @@ class ProductService
             $data['track_batches'] = false;
             $data['has_variants'] = false;
             $data['is_weighted'] = false;
+            $data['track_serials'] = false;
         }
 
         return $data;

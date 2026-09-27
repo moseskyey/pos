@@ -119,6 +119,20 @@
                     </x-card>
                 @endif
 
+                @if (feature('pharmacy') || $product->generic_name || $product->requires_prescription)
+                    <x-card :title="__('Pharmacy')" icon="bi-capsule" class="mt-4">
+                        <div class="row">
+                            <div class="col-md-6"><x-input name="generic_name" :label="__('Generic name')" :value="$product->generic_name" :placeholder="__('e.g. Paracetamol')" /></div>
+                            <div class="col-md-3"><x-input name="strength" :label="__('Strength')" :value="$product->strength" placeholder="500mg" /></div>
+                            <div class="col-md-3">
+                                <x-select name="dosage_form" :label="__('Form')" :value="$product->dosage_form" :placeholder="__('—')"
+                                          :options="collect(['tablet', 'capsule', 'syrup', 'suspension', 'injection', 'cream', 'ointment', 'drops', 'inhaler', 'sachet', 'other'])->mapWithKeys(fn ($f) => [$f => __(ucfirst($f))])->all()" />
+                            </div>
+                            <div class="col-12"><x-toggle name="requires_prescription" :label="__('Prescription only (Rx)')" :checked="$product->requires_prescription" :help="__('The till asks for the prescription number before selling it.')" class="mb-0" /></div>
+                        </div>
+                    </x-card>
+                @endif
+
                 @if (feature('variants') || $product->has_variants)
                 <x-card :title="__('Variants')" icon="bi-grid-3x3" class="mt-4" :subtitle="__('For boutiques: sizes, colours… each variant has its own SKU, stock and price.')">
                     <input type="hidden" name="has_variants" value="0">
@@ -237,6 +251,12 @@
                     @endif
                     @if (feature('scale_items') || $product->is_weighted)
                         <x-toggle name="is_weighted" :label="__('Sold by weight (scale barcode)')" :checked="$product->is_weighted" />
+                    @endif
+                    @if (feature('serials') || $product->track_serials)
+                        <div x-data="{ serials: @js((bool) old('track_serials', $product->track_serials)) }">
+                            <x-toggle name="track_serials" :label="__('Track serial / IMEI numbers')" :checked="$product->track_serials" x-model="serials" :help="__('Each unit sold needs its serial scanned at the till.')" />
+                            <div x-show="serials" x-cloak><x-input name="warranty_months" type="number" min="0" max="120" :label="__('Warranty')" :value="$product->warranty_months" :suffix="__('months')" /></div>
+                        </div>
                     @endif
                     <x-input name="reorder_level" type="number" step="0.001" min="0" :label="__('Reorder level')" :value="$product->reorder_level !== null ? (float) $product->reorder_level : 0" :help="__('Low-stock alert at or below this quantity.')" class="mb-0" />
                 </x-card>

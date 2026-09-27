@@ -404,6 +404,14 @@ tests/Feature  tests/Unit
     snapshotted on `sale_items.bundle_components` for returns.
   - Gift cards are `PaymentMethod::GiftCard`; `GiftCardService` locks, spends and restores balances with a ledger in
     `gift_card_transactions`. `PaymentMethod::isAccount()` marks methods that are not new money.
+- Shop-type features (Batch 3):
+  - `SerialService`: `products.track_serials` lines need one serial per unit at checkout; `product_serials` holds
+    in_stock / sold / defective units with warranty end dates. Unregistered serials are recorded at sale time.
+  - Pharmacy: `generic_name`, `strength`, `dosage_form`, `requires_prescription`; `SaleService::checkPrescription()`
+    needs `cart['prescription_ref']` for Rx items.
+  - `PaymentMethod::Cheque` + `ChequeService`: every cheque payment (sale, customer, supplier) gets a `cheques` row;
+    bouncing it reverses the payment and reopens paid invoices/bills.
+  - `product_suppliers` is updated on every GRN; `ReorderService` prefers `is_preferred` suppliers.
 
 ---
 

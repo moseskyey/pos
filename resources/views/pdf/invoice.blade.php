@@ -34,7 +34,8 @@
         @foreach ($sale->items as $i => $item)
             <tr>
                 <td>{{ $i + 1 }}</td>
-                <td>{{ $item->name }}<br><span class="muted">{{ $item->sku }}</span></td>
+                <td>{{ $item->name }}<br><span class="muted">{{ $item->sku }}</span>
+                    @if ($item->relationLoaded('serials') && $item->serials->isNotEmpty())<br><span class="muted">S/N: {{ $item->serials->pluck('serial')->join(', ') }}@if ($item->serials->first()->warranty_until) · {{ __('Warranty until :d', ['d' => format_date($item->serials->first()->warranty_until)]) }}@endif</span>@endif</td>
                 <td class="text-end">{{ qty($item->quantity) }} {{ $item->unit_name }}</td>
                 <td class="text-end">{{ money($item->unit_price, false) }}</td>
                 <td class="text-end">{{ ($item->discount_amount + $item->promo_discount) > 0 ? money(\App\Support\Money::add($item->discount_amount, $item->promo_discount), false) : '—' }}</td>

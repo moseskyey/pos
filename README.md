@@ -99,7 +99,7 @@ database user must be allowed to create one database per business (see [DEPLOY.m
 - A settings module, dark mode, and an English/Kiswahili switcher.
 - **Feature switches per business** (Settings → Features): quotations, layaway, credit terms, loyalty, variants,
   batches & expiry, weighed items, transfers, stock takes, expenses, WhatsApp sharing, email documents, promotions,
-  branch prices, bundles and gift cards. Switched-off
+  branch prices, bundles, gift cards, serial numbers, pharmacy and cheques. Switched-off
   modules disappear from menus and screens, and their pages return 404. One-click presets set them up for a
   supermarket, pharmacy, hardware shop, boutique, electronics shop, cosmetics shop or wholesaler.
 
@@ -130,6 +130,13 @@ database user must be allowed to create one database per business (see [DEPLOY.m
 - **Branch prices**: a different retail/wholesale price per branch, set on the product page.
 - **Bundles / kits**: one product (e.g. a hamper) that sells several items; stock and cost come from each item, and
   voids and returns put the items back.
+- **Serial / IMEI numbers** for phones and appliances: record them on the GRN or by hand, scan the IMEI at the till
+  (it adds that exact unit), print them with the warranty end date on the receipt, and look up any serial to see
+  who bought it and whether it is under warranty. Voids and returns put serials back (or mark them defective).
+- **Pharmacy**: generic name, strength and dosage form (searchable at the till); prescription-only items need the Rx
+  number before the sale, and it prints on the receipt.
+- **Cheques** at the till, for customer debts and to suppliers, including post-dated ones. The Cheques page tracks
+  them until they clear; a bounced cheque reverses its payment and reopens the invoices it paid.
 - Mobile money STK push, and an idle lock screen that needs a PIN to unlock.
 - Receipts on 58/80 mm thermal paper with a QR verification code, plus A4 tax invoices and delivery notes.
 - Direct printing to USB or serial thermal printers (ESC/POS) from Chrome or Edge, with the cash drawer
@@ -164,7 +171,8 @@ database user must be allowed to create one database per business (see [DEPLOY.m
 - Goods received notes that update the moving average cost.
 - Supplier bills, payments and aging.
 - Returns to supplier.
-- Reorder suggestions that turn into draft POs.
+- Reorder suggestions that turn into draft POs, using each product's preferred supplier.
+- Supplier ↔ product links (their product code, last cost, lead time, preferred supplier), updated on every GRN.
 - Expenses with receipts, plus recurring expenses such as rent, salaries and LUKU.
 
 **Dashboard & reports.**

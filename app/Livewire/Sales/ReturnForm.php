@@ -6,6 +6,7 @@ use App\Enums\SaleStatus;
 use App\Exceptions\ApprovalRequiredException;
 use App\Exceptions\BusinessRuleException;
 use App\Livewire\Concerns\RequiresApproval;
+use App\Models\ProductSerial;
 use App\Models\Sale;
 use App\Services\ReturnService;
 use App\Support\Money;
@@ -57,9 +58,11 @@ class ReturnForm extends Component
         }
         $this->saleId = $sale->id;
         $this->lookup = $sale->number;
+        $serials = ProductSerial::withoutGlobalScopes()->where('sale_id', $sale->id)->where('status', 'sold')->get(['sale_item_id', 'serial'])->groupBy('sale_item_id');
         $this->lines = $sale->items->mapWithKeys(fn ($i) => [$i->id => [
             'name' => $i->name, 'sold' => (float) $i->quantity, 'returnable' => (float) $i->returnableQuantity(),
             'unit' => $i->unit_name, 'unit_refund' => (float) Money::div($i->netTotal(), $i->quantity), 'quantity' => 0, 'condition' => 'restock',
+            'serial_options' => $serials->get($i->id)?->pluck('serial')->all() ?? [], 'serials' => [],
         ]])->all();
         $this->refundMethod = $sale->balance_due > 0 ? 'account' : 'cash';
     }

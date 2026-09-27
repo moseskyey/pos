@@ -42,7 +42,8 @@ class CustomerPaymentController extends Controller
             return back()->withInput()->with('error', __('Select a single branch in the navbar first.'));
         }
         try {
-            $payment = $service->receive(Customer::findOrFail($data['customer_id']), $data['amount'], PaymentMethod::from($data['method']), $request->user(), $branchId, $data['reference'] ?? null, $data['note'] ?? null, $data['idempotency_key'] ?? null);
+            $payment = $service->receive(Customer::findOrFail($data['customer_id']), $data['amount'], PaymentMethod::from($data['method']), $request->user(), $branchId, $data['reference'] ?? null, $data['note'] ?? null, $data['idempotency_key'] ?? null,
+                ['bank' => $data['bank'] ?? null, 'cheque_date' => $data['cheque_date'] ?? null]);
         } catch (BusinessRuleException $e) {
             return back()->withInput()->with('error', $e->getMessage());
         }

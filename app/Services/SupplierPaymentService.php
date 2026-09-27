@@ -16,17 +16,21 @@ class SupplierPaymentService
     public function __construct(protected SupplierLedgerService $ledger, protected DocumentNumberService $numbers, protected ShiftService $shifts) {}
 
     /** @param array<int, mixed> $allocations bill_id => amount (empty = FIFO) */
-    public function pay(Supplier $supplier, string|int|float $amount, PaymentMethod $method, User $user, int $branchId, array $allocations = [], ?string $reference = null, ?string $note = null, ?string $paidAt = null): SupplierPayment
+    /** @param array{bank?: ?string, cheque_date?: ?string} $cheque bank and date when paying by cheque */
+    public function pay(Supplier $supplier, string|int|float $amount, PaymentMethod $method, User $user, int $branchId, array $allocations = [], ?string $reference = null, ?string $note = null, ?string $paidAt = null, array $cheque = []): SupplierPayment
     {
         $amount = Money::round($amount);
         if (! Money::isPositive($amount)) {
             throw new BusinessRuleException(__('Enter an amount greater than zero.'));
         }
+        if ($method === PaymentMethod::Cheque && ! $reference) {
+            throw new BusinessRuleException(__('Enter the cheque number.'));
+        }
         if ($method->isAccount()) {
             throw new BusinessRuleException(__('Choose a real payment method.'));
         }
 
-        return DB::transaction(function () use ($supplier, $amount, $method, $user, $branchId, $allocations, $reference, $note, $paidAt) {
+        return DB::transaction(function () use ($supplier, $amount, $method, $user, $branchId, $allocations, $reference, $note, $paidAt, $cheque) {
             // Same rules as expenses: cash only, an open shift, and enough cash in the drawer.
             $shift = null;
             if (! empty($allocations['from_drawer'])) {
@@ -48,6 +52,10 @@ class SupplierPaymentService
                 'number' => $this->numbers->next('supplier_payment', $branchId), 'amount' => $amount, 'method' => $method,
                 'reference' => $reference, 'paid_at' => $paidAt ?? now()->toDateString(), 'note' => $note, 'user_id' => $user->id,
             ]);
+
+            if ($method === PaymentMethod::Cheque) {
+                app(ChequeService::class)->record('issued', ['number' => $reference, 'cheque_date' => $paidAt] + $cheque, $amount, $branchId, $payment, supplier: $supplier);
+            }
 
             $remaining = $amount;
             $bills = SupplierBill::withoutGlobalScopes()->where('supplier_id', $supplier->id)->where('status', '!=', 'paid')

@@ -6,6 +6,7 @@ use App\Support\Money;
 use App\Support\Qty;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class SaleItem extends Model
 {
@@ -61,5 +62,11 @@ class SaleItem extends Model
     public function totalCost(): string
     {
         return Money::mul($this->cost_price, $this->quantity);
+    }
+
+    /** Serial / IMEI numbers sold on this line. */
+    public function serials(): HasMany
+    {
+        return $this->hasMany(ProductSerial::class)->withoutGlobalScopes()->orderBy('serial');
     }
 }

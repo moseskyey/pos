@@ -90,6 +90,7 @@ class DocumentForm extends Component
             'product_id' => $product->id, 'name' => $product->name, 'sku' => $product->sku, 'unit' => $product->unit?->short_name,
             'batched' => $product->track_batches, 'quantity' => $qty, 'unit_cost' => $cost, 'tax_rate' => (float) $product->taxRate(),
             'batch_no' => '', 'expiry_date' => '',
+            'serialized' => $product->track_serials && feature('serials'), 'serials' => '',
         ];
     }
 

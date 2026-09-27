@@ -35,8 +35,11 @@
                 <div class="col-lg-5">
                     <x-card :title="$supplier->name" :subtitle="__('Balance :b', ['b' => money($supplier->balance)])">
                         <x-input name="amount" type="number" min="0" step="0.01" :label="__('Amount')" prefix="TSh" :value="(float) $supplier->balance" required />
-                        <x-select name="method" :label="__('Method')" :options="$methods->mapWithKeys(fn ($m) => [$m->value => $m->label()])" value="bank" />
-                        <x-input name="reference" :label="__('Reference')" />
+                        <div x-data="{ method: @js(old('method', 'bank')) }">
+                        <x-select name="method" :label="__('Method')" :options="$methods->mapWithKeys(fn ($m) => [$m->value => $m->label()])" value="bank" x-model="method" />
+                        <x-input name="reference" :label="__('Reference')" x-bind:placeholder="method === 'cheque' ? @js(__('Cheque number')) : ''" />
+                        <div x-show="method === 'cheque'" x-cloak><x-input name="bank" :label="__('Bank')" x-bind:disabled="method !== 'cheque'" /></div>
+                        </div>
                         <x-input name="paid_at" type="date" :label="__('Date')" :value="today()->toDateString()" required />
                         <x-toggle name="from_drawer" :label="__('Cash taken from my shift drawer')" />
                         <x-input name="note" :label="__('Note')" class="mb-0" />

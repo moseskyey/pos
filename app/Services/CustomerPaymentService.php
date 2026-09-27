@@ -23,7 +23,8 @@ class CustomerPaymentService
         protected ShiftService $shifts,
     ) {}
 
-    public function receive(Customer $customer, string|int|float $amount, PaymentMethod $method, User $user, int $branchId, ?string $reference = null, ?string $note = null, ?string $idempotencyKey = null): CustomerPayment
+    /** @param array{bank?: ?string, cheque_date?: ?string} $cheque bank and date when paid by cheque */
+    public function receive(Customer $customer, string|int|float $amount, PaymentMethod $method, User $user, int $branchId, ?string $reference = null, ?string $note = null, ?string $idempotencyKey = null, array $cheque = []): CustomerPayment
     {
         if ($idempotencyKey && ($existing = CustomerPayment::withoutGlobalScopes()->where('idempotency_key', $idempotencyKey)->first())) {
             return $existing;
@@ -38,8 +39,11 @@ class CustomerPaymentService
         if ($method->isMobileMoney() && ! $reference) {
             throw new BusinessRuleException(__('Enter the mobile money transaction reference.'));
         }
+        if ($method === PaymentMethod::Cheque && ! $reference) {
+            throw new BusinessRuleException(__('Enter the cheque number.'));
+        }
 
-        return DB::transaction(function () use ($customer, $amount, $method, $user, $branchId, $reference, $note, $idempotencyKey) {
+        return DB::transaction(function () use ($customer, $amount, $method, $user, $branchId, $reference, $note, $idempotencyKey, $cheque) {
             $shift = $method === PaymentMethod::Cash ? $this->shifts->current($user, $branchId) : null;
             $payment = CustomerPayment::withoutGlobalScopes()->create([
                 'branch_id' => $branchId,
@@ -53,6 +57,10 @@ class CustomerPaymentService
                 'note' => $note,
                 'idempotency_key' => $idempotencyKey,
             ]);
+
+            if ($method === PaymentMethod::Cheque) {
+                app(ChequeService::class)->record('received', ['number' => $reference] + $cheque, $amount, $branchId, $payment, $customer);
+            }
 
             $remaining = $amount;
             $open = Sale::withoutGlobalScopes()->where('customer_id', $customer->id)

@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\BulkPriceController;
+use App\Http\Controllers\ChequeController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\CustomerPaymentController;
 use App\Http\Controllers\ExpenseController;
@@ -16,6 +17,7 @@ use App\Http\Controllers\ReceiptController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\SaleController;
 use App\Http\Controllers\SaleReturnController;
+use App\Http\Controllers\SerialController;
 use App\Http\Controllers\ShiftController;
 use App\Http\Controllers\StockAdjustmentController;
 use App\Http\Controllers\StockController;
@@ -44,6 +46,8 @@ Route::get('/products/export', [ProductImportController::class, 'export'])->name
 Route::get('/products/bulk-price', [BulkPriceController::class, 'create'])->name('products.bulk-price');
 Route::post('/products/bulk-price', [BulkPriceController::class, 'store'])->name('products.bulk-price.store');
 Route::put('/products/{product}/branch-prices', [ProductController::class, 'branchPrices'])->middleware('feature:branch_prices')->name('products.branch-prices');
+Route::post('/products/{product}/suppliers', [ProductController::class, 'storeSupplier'])->name('products.suppliers.store');
+Route::delete('/products/{product}/suppliers/{productSupplier}', [ProductController::class, 'destroySupplier'])->name('products.suppliers.destroy');
 Route::resource('products', ProductController::class);
 
 Route::get('/labels', [LabelController::class, 'index'])->name('labels.index');
@@ -119,6 +123,14 @@ Route::middleware('feature:gift_cards')->group(function () {
     Route::get('/gift-cards/{giftCard}', [GiftCardController::class, 'show'])->name('gift-cards.show');
     Route::get('/gift-cards/{giftCard}/print', [GiftCardController::class, 'print'])->name('gift-cards.print');
     Route::post('/gift-cards/{giftCard}/toggle', [GiftCardController::class, 'toggle'])->name('gift-cards.toggle');
+});
+Route::middleware('feature:cheques')->group(function () {
+    Route::get('/cheques', [ChequeController::class, 'index'])->name('cheques.index');
+    Route::put('/cheques/{cheque}', [ChequeController::class, 'update'])->name('cheques.update');
+});
+Route::middleware('feature:serials')->group(function () {
+    Route::get('/serials', [SerialController::class, 'index'])->name('serials.index');
+    Route::post('/serials', [SerialController::class, 'store'])->name('serials.store');
 });
 Route::middleware('feature:quotations')->group(function () {
     Route::get('/quotations', [QuotationController::class, 'index'])->name('quotations.index');
