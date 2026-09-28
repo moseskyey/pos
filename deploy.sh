@@ -22,6 +22,8 @@ git pull --ff-only origin "$BRANCH"
 
 echo "==> Installing PHP dependencies"
 composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader
+# Serve Livewire's script as a static file (aaPanel's nginx static .js rule 404s the dynamic route).
+$PHP artisan vendor:publish --tag=livewire:assets --force
 
 echo "==> Migrating databases"
 $PHP artisan migrate --force                 # central: businesses, plans, billing
