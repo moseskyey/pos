@@ -24,6 +24,9 @@ class BranchContext
 
     protected bool $bypass = false;
 
+    /** API requests have no session: they see one requested branch or all of the user's branches. */
+    protected bool $apiAll = false;
+
     public function user(): ?User
     {
         return Auth::user();
@@ -65,6 +68,9 @@ class BranchContext
     {
         if ($this->forcedBranchId !== null) {
             return $this->forcedBranchId;
+        }
+        if ($this->apiAll) {
+            return null;
         }
 
         $ids = $this->accessibleIds();
@@ -126,6 +132,13 @@ class BranchContext
     public function canAccess(?int $branchId): bool
     {
         return $branchId !== null && in_array($branchId, $this->accessibleIds(), true);
+    }
+
+    /** Scope an API request to one branch, or to all of the user's branches when null. */
+    public function useForApi(?int $branchId): void
+    {
+        $this->forcedBranchId = $branchId;
+        $this->apiAll = $branchId === null;
     }
 
     /** Run a callback scoped to a specific branch (used by jobs and services). */

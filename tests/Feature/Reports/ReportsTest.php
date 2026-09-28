@@ -12,6 +12,7 @@ use App\Reports\ReportRegistry;
 use App\Services\ExpenseService;
 use App\Services\PurchaseService;
 use App\Services\SaleService;
+use App\Services\SettingsService;
 use App\Services\ShiftService;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -29,6 +30,7 @@ beforeEach(function () {
 });
 
 it('renders every report', function (string $key) {
+    app(SettingsService::class)->set(['features.commission' => true]); // opt-in report
     $this->get(route('reports.show', $key))->assertOk();
 })->with(fn () => array_keys(ReportRegistry::all()->all()));
 

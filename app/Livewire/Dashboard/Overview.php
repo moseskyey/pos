@@ -6,8 +6,10 @@ use App\Enums\PaymentMethod;
 use App\Models\Customer;
 use App\Models\ProductBatch;
 use App\Models\Sale;
+use App\Models\SalesTarget;
 use App\Models\Shift;
 use App\Reports\ReportFilters;
+use App\Services\CommissionService;
 use App\Services\ShiftService;
 use App\Support\BranchContext;
 use App\Support\Money;
@@ -111,7 +113,14 @@ class Overview extends Component
             ->groupBy('customers.id', 'customers.name')->selectRaw('customers.id, customers.name, COUNT(*) as visits, SUM(sales.total) as spent')->orderByDesc('spent')->limit(5)->get();
         $recent = Sale::query()->with('customer')->where('status', 'completed')->latest()->limit(8)->get();
 
+        // This month's sales, target and commission for the signed-in person.
+        $myMonth = null;
+        if (feature('commission') && ($user->commission_rate !== null || SalesTarget::withoutGlobalScopes()->where('user_id', $user->id)->where('month', now()->format('Y-m'))->exists())) {
+            $myMonth = app(CommissionService::class)->monthFor($user, $user->branches()->pluck('branches.id')->all());
+        }
+
         return view('livewire.dashboard.overview', [
+            'myMonth' => $myMonth,
             'f' => $f,
             'current' => $current,
             'previous' => $previous,

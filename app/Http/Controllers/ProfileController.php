@@ -10,6 +10,7 @@ use App\Http\Requests\ThemeRequest;
 use App\Http\Requests\TwoFactorCodeRequest;
 use App\Http\Requests\UpdatePasswordRequest;
 use App\Http\Requests\UpdatePinRequest;
+use App\Models\ApiToken;
 use App\Support\QrCode;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -29,7 +30,10 @@ class ProfileController extends Controller
             $qr = QrCode::svg($google2fa->getQRCodeUrl(setting('business.name', 'DukaPOS'), $user->email, $pendingSecret), 180);
         }
 
-        return view('profile.edit', ['user' => $user, 'qr' => $qr, 'pendingSecret' => $pendingSecret]);
+        return view('profile.edit', [
+            'user' => $user, 'qr' => $qr, 'pendingSecret' => $pendingSecret,
+            'apiTokens' => feature('api') && $user->can('api.tokens') ? ApiToken::where('user_id', $user->id)->latest()->get() : null,
+        ]);
     }
 
     public function update(ProfileRequest $request): RedirectResponse

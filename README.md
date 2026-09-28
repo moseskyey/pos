@@ -99,7 +99,7 @@ database user must be allowed to create one database per business (see [DEPLOY.m
 - A settings module, dark mode, and an English/Kiswahili switcher.
 - **Feature switches per business** (Settings → Features): quotations, layaway, credit terms, loyalty, variants,
   batches & expiry, weighed items, transfers, stock takes, expenses, WhatsApp sharing, email documents, promotions,
-  branch prices, bundles, gift cards, serial numbers, pharmacy and cheques. Switched-off
+  branch prices, bundles, gift cards, serial numbers, pharmacy, cheques, commission, camera scanning and API access. Switched-off
   modules disappear from menus and screens, and their pages return 404. One-click presets set them up for a
   supermarket, pharmacy, hardware shop, boutique, electronics shop, cosmetics shop or wholesaler.
 
@@ -135,6 +135,12 @@ database user must be allowed to create one database per business (see [DEPLOY.m
   who bought it and whether it is under warranty. Voids and returns put serials back (or mark them defective).
 - **Pharmacy**: generic name, strength and dosage form (searchable at the till); prescription-only items need the Rx
   number before the sale, and it prints on the receipt.
+- **Commission & targets**: the till records who made each sale ("Sold by"); managers set commission rates and
+  monthly targets per salesperson and branch; a report and each person's dashboard show progress and commission
+  (net of VAT and returns).
+- **Camera scanning**: scan barcodes with a phone or tablet camera at the till, in stock takes, on goods received,
+  transfers and adjustments, and for serial look-ups (built-in BarcodeDetector, with a ZXing fallback for iPhone).
+- **REST API** for mobile apps, online shops and accounting tools, with per-user tokens (see [API](#api)).
 - **Cheques** at the till, for customer debts and to suppliers, including post-dated ones. The Cheques page tracks
   them until they clear; a bounced cheque reverses its payment and reopens the invoices it paid.
 - Mobile money STK push, and an idle lock screen that needs a PIN to unlock.
@@ -193,6 +199,34 @@ database user must be allowed to create one database per business (see [DEPLOY.m
 - Security headers, rate-limited logins and PINs, and encrypted API keys.
 - Policies authorise every record by role and branch, and Form Requests validate every controller input.
 - Lazy loading is blocked outside production.
+
+## API
+
+Switch on **Settings → Features → API access**, then create a token under **My profile → API tokens** (owners have
+the `api.tokens` permission; give it to other roles in **Roles**). A token acts as its user: the same permissions,
+branches and cost-price visibility. Read-only tokens can only use `GET`; tokens with "Allow changes" can also create
+customers. Tokens can expire and can be revoked at any time; only a hash is stored.
+
+```bash
+TOKEN=dk_1_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+curl -H "Authorization: Bearer $TOKEN" -H "Accept: application/json" https://pos.example.com/api/v1/me
+curl -H "Authorization: Bearer $TOKEN" "https://pos.example.com/api/v1/products?q=sukari&per_page=50"
+curl -H "Authorization: Bearer $TOKEN" -d name="Online buyer" -d phone=0712345678 -d type=retail https://pos.example.com/api/v1/customers
+```
+
+| Method | Endpoint | Notes |
+|---|---|---|
+| GET | `/api/v1/me` | The token's user, business and branches |
+| GET | `/api/v1/products` | `q`, `category_id`, `updated_since`, `per_page` (≤100); includes stock for the branch(es) |
+| GET | `/api/v1/products/{id}` | |
+| GET | `/api/v1/customers` · `/api/v1/customers/{id}` | `q`, `updated_since` |
+| POST | `/api/v1/customers` | Write tokens only; same validation as the app |
+| GET | `/api/v1/sales` · `/api/v1/sales/{id}` | `from`, `to`, `status`; cashiers see their own sales |
+| GET | `/api/v1/reports/summary` | Sales totals for `from`–`to`; gross profit with `reports.profit.view` |
+
+Every endpoint accepts `branch_id` to narrow to one of the user's branches. Lists are paginated (`links` and `meta`
+in the response). Limit: 120 requests per minute per token. Errors: 401 bad token, 402 subscription expired,
+403 no permission / feature off / read-only token, 422 validation.
 
 ## Configuration
 

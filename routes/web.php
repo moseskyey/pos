@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\ActivityController;
+use App\Http\Controllers\ApiTokenController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\PasswordResetController;
 use App\Http\Controllers\Auth\TwoFactorChallengeController;
@@ -67,6 +68,10 @@ Route::middleware(['auth', 'active', 'subscribed'])->group(function () {
     Route::post('/profile/two-factor/confirm', [ProfileController::class, 'confirmTwoFactor'])->name('two-factor.confirm');
     Route::delete('/profile/two-factor', [ProfileController::class, 'disableTwoFactor'])->name('two-factor.disable');
     Route::post('/preferences/theme', [ProfileController::class, 'theme'])->name('preferences.theme');
+    Route::middleware('feature:api')->group(function () {
+        Route::post('/profile/api-tokens', [ApiTokenController::class, 'store'])->name('api-tokens.store');
+        Route::delete('/profile/api-tokens/{apiToken}', [ApiTokenController::class, 'destroy'])->name('api-tokens.destroy');
+    });
     Route::post('/lock', [ProfileController::class, 'lock'])->name('lock');
     Route::post('/lock/verify', [ProfileController::class, 'verifyPin'])->middleware('throttle:10,1')->name('lock.verify');
 

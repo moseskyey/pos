@@ -60,6 +60,7 @@ class Navigation
             ]],
             ['Reports', [
                 ['Reports', 'bi-bar-chart-line', 'reports.index', 'reports.view', 'reports.*'],
+                ['Targets & Commission', 'bi-trophy', 'targets.index', 'targets.manage', 'targets.*', 'commission'],
             ]],
             ['Settings', [
                 ['Settings', 'bi-gear', 'settings.edit', 'settings.manage', 'settings.*'],

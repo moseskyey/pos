@@ -412,6 +412,14 @@ tests/Feature  tests/Unit
   - `PaymentMethod::Cheque` + `ChequeService`: every cheque payment (sale, customer, supplier) gets a `cheques` row;
     bouncing it reverses the payment and reopens paid invoices/bills.
   - `product_suppliers` is updated on every GRN; `ReorderService` prefers `is_preferred` suppliers.
+- Staff & integrations (Batch 4):
+  - `sales.salesperson_id` (defaults to the cashier when commission is on); `CommissionService` = rate × (net sales
+    ex VAT − returns); `sales_targets` per salesperson or branch (`user_id` null) and month.
+  - Camera scanning: any `[data-camera-scan]` button (`<x-camera-scan />`) opens the shared dialog in
+    `resources/js/camera-scan.js`; ZXing is a lazy chunk.
+  - API: `/api/v1` with `api_tokens` ("dk_{business id}_{secret}", SHA-256 stored). `AuthenticateApiToken` selects
+    the business from the token, then authenticates; it runs before `SubstituteBindings`. Endpoints check the user's
+    own permissions; `BranchContext::useForApi()` scopes to `branch_id` or all of the user's branches.
 
 ---
 

@@ -33,6 +33,12 @@
                     <x-input name="pin" type="password" inputmode="numeric" maxlength="6" :label="__('PIN (4–6 digits)')" autocomplete="new-password"
                              :help="$user->hasPin() ? __('A PIN is set. Enter a new one to change it.') : __('Used to approve voids, discounts and other overrides.')" class="mb-0" />
                 </x-card>
+                @if (feature('commission'))
+                    <x-card :title="__('Commission')" class="mt-4">
+                        <x-input name="commission_rate" type="number" step="0.01" min="0" max="100" :label="__('Commission rate')" :value="$user->commission_rate !== null ? (float) $user->commission_rate : null" suffix="%"
+                                 :help="__('Paid on their net sales without VAT. Leave empty for no commission.')" class="mb-0" />
+                    </x-card>
+                @endif
                 <x-card :title="__('Status')" class="mt-4">
                     <x-toggle name="is_active" :label="__('Account is active')" :checked="$user->is_active" :help="__('Inactive users cannot sign in.')" class="mb-0" />
                 </x-card>

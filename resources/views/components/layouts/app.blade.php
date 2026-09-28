@@ -264,6 +264,7 @@
 
 @include('partials.flash')
 <x-confirm-modal />
+<x-camera-scan-modal />
 @stack('modals')
 @stack('scripts')
 @livewireScripts

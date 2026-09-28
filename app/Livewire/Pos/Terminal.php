@@ -18,6 +18,7 @@ use App\Models\ProductUnit;
 use App\Models\Register;
 use App\Models\Sale;
 use App\Models\Shift;
+use App\Models\User;
 use App\Services\CustomerLedgerService;
 use App\Services\GiftCardService;
 use App\Services\LoyaltyService;
@@ -60,6 +61,8 @@ class Terminal extends Component
     public ?string $selectedLine = null;
 
     public string $note = '';
+
+    public ?int $salespersonId = null;
 
     public string $prescriptionRef = '';
 
@@ -176,6 +179,18 @@ class Terminal extends Component
     }
 
     // -------------------------------------------------------------- Products --
+
+    /** People who can be credited with a sale at this branch (Settings → Features → Commission). */
+    #[Computed]
+    public function salespeople(): Collection
+    {
+        $branchId = $this->shift?->branch_id;
+        if (! feature('commission') || ! $branchId) {
+            return collect();
+        }
+
+        return User::query()->where('is_active', true)->whereHas('branches', fn ($q) => $q->whereKey($branchId))->orderBy('name')->get(['id', 'name']);
+    }
 
     #[Computed]
     public function categories(): Collection
@@ -429,6 +444,7 @@ class Terminal extends Component
         $this->note = '';
         $this->prescriptionRef = '';
         $this->prescriber = '';
+        $this->salespersonId = null;
         $this->approvals = [];
         $this->payments = [];
         $this->quotationId = null;
@@ -933,6 +949,7 @@ class Terminal extends Component
             'cart_discount_value' => $this->cartDiscountValue,
             'loyalty_points' => $this->loyaltyPoints,
             'note' => $this->note ?: null,
+            'salesperson_id' => $this->salespersonId,
             'prescription_ref' => $this->prescriptionRef ?: null,
             'prescriber' => $this->prescriber ?: null,
         ];

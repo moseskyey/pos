@@ -14,6 +14,7 @@ import './charts';
 import './escpos';
 import './offline';
 import './pos';
+import './camera-scan';
 
 window.bootstrap = bootstrap;
 window.Chart = Chart;

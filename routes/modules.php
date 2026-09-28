@@ -24,6 +24,7 @@ use App\Http\Controllers\StockController;
 use App\Http\Controllers\StockTakeController;
 use App\Http\Controllers\StockTransferController;
 use App\Http\Controllers\SupplierController;
+use App\Http\Controllers\TargetController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -131,6 +132,10 @@ Route::middleware('feature:cheques')->group(function () {
 Route::middleware('feature:serials')->group(function () {
     Route::get('/serials', [SerialController::class, 'index'])->name('serials.index');
     Route::post('/serials', [SerialController::class, 'store'])->name('serials.store');
+});
+Route::middleware('feature:commission')->group(function () {
+    Route::get('/targets', [TargetController::class, 'index'])->name('targets.index');
+    Route::put('/targets', [TargetController::class, 'update'])->name('targets.update');
 });
 Route::middleware('feature:quotations')->group(function () {
     Route::get('/quotations', [QuotationController::class, 'index'])->name('quotations.index');

@@ -3,6 +3,7 @@
         <span class="input-group-text"><i class="bi bi-upc-scan"></i></span>
         <input type="search" class="form-control" wire:model.live.debounce.250ms="productSearch" @focus="open = true" @input="open = true"
                wire:keydown.enter.prevent="pickFirst" placeholder="{{ $placeholder ?? __('Scan barcode or search product…') }}" aria-label="{{ __('Search product') }}" autocomplete="off">
+        <x-camera-scan />
     </div>
     @if (strlen(trim($productSearch)) >= 2)
         <div class="card shadow-lg position-absolute w-100 mt-1" style="z-index: 1050; max-height: 320px; overflow-y: auto" x-show="open">

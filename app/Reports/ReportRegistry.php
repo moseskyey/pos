@@ -16,6 +16,7 @@ class ReportRegistry
         Sales\DiscountsReport::class,
         Sales\ReturnsVoidsReport::class,
         Sales\ShiftReconciliationReport::class,
+        Sales\CommissionReport::class,
         Finance\ProfitLossReport::class,
         Finance\GrossProfitReport::class,
         Finance\VatReport::class,

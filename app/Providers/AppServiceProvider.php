@@ -39,5 +39,6 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('payments', fn (Request $request) => Limit::perMinute(30)->by($request->user()?->id ?: $request->ip()));
         RateLimiter::for('signup', fn (Request $request) => Limit::perHour(5)->by($request->ip()));
         RateLimiter::for('callbacks', fn (Request $request) => Limit::perMinute(120)->by($request->ip()));
+        RateLimiter::for('api-tokens', fn (Request $request) => Limit::perMinute(120)->by(substr(hash('sha256', (string) $request->bearerToken()), 0, 16).'|'.$request->ip()));
     }
 }
