@@ -18,7 +18,7 @@ class CustomerRequest extends FormRequest
         if (! $this->user()->can('customers.credit')) {
             // These fields are read-only for this user; keep the current values.
             $customer = $this->route('customer');
-            $this->merge(['type' => $customer?->type ?? 'retail', 'credit_limit' => $customer?->credit_limit ?? 0]);
+            $this->merge(['type' => $customer?->type ?? 'retail', 'credit_limit' => $customer?->credit_limit ?? 0, 'credit_days' => $customer?->credit_days]);
             $this->request->remove('opening_balance');
         }
         $this->merge([
@@ -39,6 +39,7 @@ class CustomerRequest extends FormRequest
             'address' => ['nullable', 'string', 'max:255'],
             'type' => ['required', Rule::in(['retail', 'wholesale'])],
             'credit_limit' => ['nullable', 'numeric', 'min:0'],
+            'credit_days' => ['nullable', 'integer', 'between:0,365'],
             'opening_balance' => [$customer ? 'prohibited' : 'nullable', 'numeric', 'min:0'],
             'notes' => ['nullable', 'string', 'max:2000'],
             'is_active' => ['boolean'],
@@ -46,14 +47,14 @@ class CustomerRequest extends FormRequest
     }
 
     /**
-     * Validated data, minus fields the user may not set: credit limit,
-     * wholesale status and opening balance need customers.credit.
+     * Validated data, minus fields the user may not set: credit limit, credit
+     * days, wholesale status and opening balance need customers.credit.
      */
     public function customerData(): array
     {
         $data = $this->validated();
         if (! $this->user()->can('customers.credit')) {
-            unset($data['credit_limit'], $data['type'], $data['opening_balance']);
+            unset($data['credit_limit'], $data['credit_days'], $data['type'], $data['opening_balance']);
             if (! $this->route('customer')) {
                 $data += ['credit_limit' => 0, 'type' => 'retail', 'opening_balance' => 0];
             }

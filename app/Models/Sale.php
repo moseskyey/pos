@@ -25,12 +25,14 @@ class Sale extends Model
         'shift_closed' => 'Synced after the shift was closed',
         'inactive_product' => 'Product was deactivated',
         'credit_limit' => 'Credit limit exceeded',
+        'gift_card' => 'Gift card could not be checked',
+        'prescription' => 'Prescription number missing',
     ];
 
     protected $fillable = [
         'branch_id', 'register_id', 'shift_id', 'user_id', 'customer_id', 'number', 'status',
-        'subtotal', 'discount_total', 'tax_total', 'rounding', 'total', 'paid_total', 'tendered', 'change_due', 'balance_due',
-        'cart_discount_type', 'cart_discount_value', 'hold_note', 'note', 'idempotency_key', 'valid_until', 'converted_sale_id', 'synced_at', 'review_flags',
+        'subtotal', 'discount_total', 'tax_total', 'rounding', 'total', 'paid_total', 'tendered', 'change_due', 'balance_due', 'due_date',
+        'cart_discount_type', 'cart_discount_value', 'hold_note', 'note', 'prescription_ref', 'prescriber', 'idempotency_key', 'valid_until', 'converted_sale_id', 'synced_at', 'review_flags',
         'completed_at', 'voided_at', 'voided_by', 'void_reason', 'reprint_count', 'fiscal_code', 'fiscal_qr', 'loyalty_earned', 'loyalty_redeemed',
     ];
 
@@ -49,6 +51,7 @@ class Sale extends Model
             'balance_due' => 'decimal:2',
             'cart_discount_value' => 'decimal:2',
             'valid_until' => 'date',
+            'due_date' => 'date',
             'completed_at' => 'datetime',
             'synced_at' => 'datetime',
             'review_flags' => 'array',
@@ -125,5 +128,11 @@ class Sale extends Model
     public function itemCount(): string
     {
         return (string) $this->items->sum('quantity');
+    }
+
+    /** Unpaid past its due date. */
+    public function isOverdue(): bool
+    {
+        return $this->due_date !== null && (float) $this->balance_due > 0 && $this->due_date->lt(today());
     }
 }

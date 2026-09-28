@@ -8,20 +8,24 @@ use App\Enums\SaleStatus;
 use App\Exceptions\ApprovalRequiredException;
 use App\Exceptions\BusinessRuleException;
 use App\Livewire\Concerns\RequiresApproval;
+use App\Models\BranchPrice;
 use App\Models\Category;
 use App\Models\Customer;
 use App\Models\PaymentIntent;
 use App\Models\Product;
+use App\Models\ProductSerial;
 use App\Models\ProductUnit;
 use App\Models\Register;
 use App\Models\Sale;
 use App\Models\Shift;
 use App\Services\CustomerLedgerService;
+use App\Services\GiftCardService;
 use App\Services\LoyaltyService;
 use App\Services\PaymentService;
 use App\Services\Pos\CartCalculator;
 use App\Services\Pos\PriceResolver;
 use App\Services\ProductService;
+use App\Services\PromotionService;
 use App\Services\QuotationService;
 use App\Services\ReceiptService;
 use App\Services\SaleService;
@@ -56,6 +60,10 @@ class Terminal extends Component
     public ?string $selectedLine = null;
 
     public string $note = '';
+
+    public string $prescriptionRef = '';
+
+    public string $prescriber = '';
 
     #[Locked]
     public string $idempotencyKey = '';
@@ -94,6 +102,7 @@ class Terminal extends Component
     // Payment ------------------------------------------------------------------
     public array $payments = [];
 
+    #[Locked]
     public ?array $completed = null;
 
     public function mount(ShiftService $shifts): void
@@ -105,7 +114,7 @@ class Terminal extends Component
         $this->idempotencyKey = (string) Str::uuid();
         $this->customerId = setting('pos.default_customer_id') ?: null;
 
-        if ($quotation = request()->integer('quotation')) {
+        if (feature('quotations') && ($quotation = request()->integer('quotation'))) {
             $this->loadQuotation($quotation);
         }
     }
@@ -134,6 +143,8 @@ class Terminal extends Component
             if ($key && $line['price_override']) {
                 $this->cart[$key]['unit_price'] = $line['unit_price'];
                 $this->cart[$key]['price_override'] = true;
+                $this->cart[$key]['promo_discount'] = 0;
+                $this->cart[$key]['promo_name'] = null;
                 $this->cart[$key]['tier'] = 'override';
             }
             if ($key) {
@@ -187,6 +198,10 @@ class Terminal extends Component
         $branchId = $this->shift?->branch_id;
         $stock = $branchId ? app(StockService::class)->availableMany($branchId, $products->pluck('id')->all()) : [];
         $products->each(fn ($p) => $p->setAttribute('available', $p->track_stock ? (float) ($stock[$p->id] ?? 0) : null));
+        $branchPrices = $branchId && feature('branch_prices')
+            ? BranchPrice::query()->where('branch_id', $branchId)->whereNull('product_unit_id')->whereIn('product_id', $products->pluck('id'))->pluck('retail_price', 'product_id')
+            : collect();
+        $products->each(fn ($p) => $p->setAttribute('display_price', (float) ($branchPrices[$p->id] ?? $p->retail_price)));
 
         return $products;
     }
@@ -201,6 +216,20 @@ class Terminal extends Component
         $match = app(ProductService::class)->findByBarcode($term);
         if ($match) {
             $this->addLine($match['product']->id, $match['unit']?->id, $match['quantity'], $match['quantity'] !== null ? $term : null);
+            $this->search = '';
+            unset($this->products);
+
+            return;
+        }
+        // Scanning a phone's IMEI / an appliance serial adds that exact unit.
+        if (feature('serials') && ($serial = ProductSerial::query()->where('serial', ProductSerial::normalize($term))->where('status', 'in_stock')->first())) {
+            $key = collect($this->cart)->search(fn ($l) => $l['product_id'] === $serial->product_id && empty($l['product_unit_id']));
+            if ($key === false) {
+                $this->addLine($serial->product_id);
+                $key = array_key_last($this->cart);
+                $this->cart[$key]['qty'] = 0;
+            }
+            $this->addSerial($key, $serial->serial);
             $this->search = '';
             unset($this->products);
 
@@ -266,6 +295,11 @@ class Terminal extends Component
             'unit_price' => 0,
             'list_price' => 0,
             'tier' => 'retail',
+            'promo_discount' => 0,
+            'promo_name' => null,
+            'serialized' => $product->track_serials && feature('serials'),
+            'serials' => [],
+            'rx' => $product->requires_prescription && feature('pharmacy'),
             'price_override' => false,
             'scale_barcode' => $scaleBarcode,
             'discount_type' => null,
@@ -321,6 +355,49 @@ class Terminal extends Component
         $this->reprice($key);
     }
 
+    /** Add a scanned or typed serial / IMEI to a line; the quantity follows the number of serials. */
+    public function addSerial(string $key, string $serial): void
+    {
+        if (! isset($this->cart[$key]) || empty($this->cart[$key]['serialized'])) {
+            return;
+        }
+        $serial = ProductSerial::normalize($serial);
+        if ($serial === '') {
+            return;
+        }
+        if (collect($this->cart)->contains(fn ($l) => in_array($serial, $l['serials'] ?? [], true))) {
+            $this->dispatch('toast', message: __('Serial :s is already in the cart.', ['s' => $serial]), type: 'warning');
+
+            return;
+        }
+        $known = ProductSerial::withoutGlobalScopes()->where('product_id', $this->cart[$key]['product_id'])->where('serial', $serial)->first();
+        $problem = match (true) {
+            $known && $known->status === 'sold' => __('Serial :s was already sold.', ['s' => $serial]),
+            $known && $known->status === 'defective' => __('Serial :s is marked defective.', ['s' => $serial]),
+            $known && $known->branch_id !== app(BranchContext::class)->currentId() => __('Serial :s is in stock at another branch.', ['s' => $serial]),
+            default => null,
+        };
+        if ($problem) {
+            $this->dispatch('scan-fail');
+            $this->dispatch('toast', message: $problem, type: 'error');
+
+            return;
+        }
+        $this->cart[$key]['serials'][] = $serial;
+        $this->cart[$key]['qty'] = (float) max((float) $this->cart[$key]['qty'], count($this->cart[$key]['serials']));
+        $this->reprice($key);
+        $this->dispatch('scan-ok');
+    }
+
+    public function removeSerial(string $key, int $index): void
+    {
+        if (! isset($this->cart[$key]['serials'][$index])) {
+            return;
+        }
+        unset($this->cart[$key]['serials'][$index]);
+        $this->cart[$key]['serials'] = array_values($this->cart[$key]['serials']);
+    }
+
     public function removeLine(string $key): void
     {
         unset($this->cart[$key]);
@@ -350,6 +427,8 @@ class Terminal extends Component
         $this->loyaltyPoints = 0;
         $this->selectedLine = null;
         $this->note = '';
+        $this->prescriptionRef = '';
+        $this->prescriber = '';
         $this->approvals = [];
         $this->payments = [];
         $this->quotationId = null;
@@ -370,13 +449,18 @@ class Terminal extends Component
     {
         $line = $this->cart[$key];
         if ($line['price_override']) {
+            // A manager's price replaces any promotion.
+            $this->cart[$key]['promo_discount'] = 0;
+            $this->cart[$key]['promo_name'] = null;
+
             return;
         }
-        $product = Product::with('units')->find($line['product_id']);
+        $product = Product::with('units', 'category')->find($line['product_id']);
         $unit = $line['product_unit_id'] ? $product->units->firstWhere('id', $line['product_unit_id']) : null;
-        $resolved = app(PriceResolver::class)->resolve($product, $unit, $line['qty'], $this->customer);
+        $branchId = app(BranchContext::class)->currentId();
+        $resolved = app(PriceResolver::class)->resolve($product, $unit, $line['qty'], $this->customer, $branchId);
         $this->cart[$key]['unit_price'] = (float) $resolved['price'];
-        $this->cart[$key]['list_price'] = (float) ($unit ? $unit->retail_price : $product->retail_price);
+        $this->cart[$key]['list_price'] = (float) $resolved['list_price'];
         $this->cart[$key]['tier'] = $resolved['tier'];
         if (! empty($line['scale_barcode'])) {
             // Display only; SaleService recomputes this from the barcode.
@@ -386,6 +470,10 @@ class Terminal extends Component
                 $this->cart[$key]['unit_price'] = (float) Money::div($scale['line_total'], $this->cart[$key]['qty']);
             }
         }
+        // Display only; SaleService works the promotion out again on checkout.
+        $promo = app(PromotionService::class)->lineDiscount($product, (string) $this->cart[$key]['qty'], (string) $this->cart[$key]['unit_price'], $branchId);
+        $this->cart[$key]['promo_discount'] = (float) $promo['discount'];
+        $this->cart[$key]['promo_name'] = $promo['promotion'] ? $promo['promotion']->name.' · '.$promo['promotion']->summary() : null;
     }
 
     protected function repriceAll(): void
@@ -489,6 +577,8 @@ class Terminal extends Component
         if (Money::cmp($this->lineForm['unit_price'], $this->cart[$key]['unit_price']) !== 0) {
             $this->cart[$key]['unit_price'] = (float) $this->lineForm['unit_price'];
             $this->cart[$key]['price_override'] = true;
+            $this->cart[$key]['promo_discount'] = 0;
+            $this->cart[$key]['promo_name'] = null;
             $this->cart[$key]['tier'] = 'override';
         }
         $this->cart[$key]['discount_type'] = $this->lineForm['discount_value'] ? $this->lineForm['discount_type'] : null;
@@ -541,6 +631,8 @@ class Terminal extends Component
             if ($line['price_override']) {
                 $this->cart[$key]['unit_price'] = $line['unit_price'];
                 $this->cart[$key]['price_override'] = true;
+                $this->cart[$key]['promo_discount'] = 0;
+                $this->cart[$key]['promo_name'] = null;
                 $this->cart[$key]['tier'] = 'override';
             }
             $this->cart[$key]['discount_type'] = $line['discount_type'];
@@ -614,6 +706,34 @@ class Terminal extends Component
         [$index, $field] = array_pad(explode('.', (string) $key), 2, null);
         if ($field === 'foreign_amount' && isset($this->payments[$index])) {
             $this->payments[$index]['amount'] = (float) Money::round(Money::mul(Money::round($value ?: 0), Money::round(setting('currency.usd_rate', 0))));
+        }
+    }
+
+    /** Look up a gift card code typed into a payment row and cap the amount at its balance. */
+    public function checkGiftCard(int $index, GiftCardService $cards): void
+    {
+        if (! isset($this->payments[$index]) || $this->payments[$index]['method'] !== PaymentMethod::GiftCard->value) {
+            return;
+        }
+        unset($this->payments[$index]['gift_balance']);
+        $card = $cards->find($this->payments[$index]['reference'] ?? '');
+        $problem = match (true) {
+            ! $card => __('Gift card not found.'),
+            ! $card->is_active => __('This gift card has been deactivated.'),
+            $card->isExpired() => __('This gift card expired on :d.', ['d' => format_date($card->expires_on)]),
+            ! Money::isPositive($card->balance) => __('This gift card has no balance left.'),
+            default => null,
+        };
+        if ($problem) {
+            $this->dispatch('toast', message: $problem, type: 'error');
+
+            return;
+        }
+        $this->payments[$index]['reference'] = $card->displayCode();
+        $this->payments[$index]['gift_balance'] = (float) $card->balance;
+        $this->payments[$index]['amount'] = (float) Money::min(Money::max($this->payments[$index]['amount'] ?: 0, 0), $card->balance);
+        if (! Money::isPositive($this->payments[$index]['amount'])) {
+            $this->payments[$index]['amount'] = (float) Money::min(Money::max(Money::sub($this->totals['total'], $this->paidAmount()), 0), $card->balance);
         }
     }
 
@@ -703,12 +823,17 @@ class Terminal extends Component
 
     public function checkoutLayaway(SaleService $sales): void
     {
-        abort_unless(auth()->user()->can('layaway.manage'), 403);
+        abort_unless(auth()->user()->can('layaway.manage') && feature('layaway'), 403);
         $this->checkout($sales, 'layaway');
     }
 
     public function checkout(SaleService $sales, string $status = 'completed'): void
     {
+        // Callable from the browser: never trust $status without re-checking it.
+        abort_unless(in_array($status, ['completed', 'layaway'], true), 400);
+        if ($status === 'layaway') {
+            abort_unless(auth()->user()->can('layaway.manage') && feature('layaway'), 403);
+        }
         if (session('pos_locked')) {
             $this->dispatch('toast', message: __('Terminal locked. Enter your PIN to continue.'), type: 'error');
 
@@ -744,8 +869,9 @@ class Terminal extends Component
             'layaway' => $status === 'layaway',
             'customer' => $sale->customer?->name,
             'phone' => $sale->customer?->phone,
+            'email' => $sale->customer?->email,
             'receipt' => route('receipts.show', $sale),
-            'whatsapp' => app(ShareService::class)->saleLink($sale),
+            'whatsapp' => feature('whatsapp') ? app(ShareService::class)->saleLink($sale) : null,
             'escpos' => setting('receipt.print_mode') === 'escpos' ? route('receipts.escpos', $sale) : null,
         ];
         $this->clearCart();
@@ -757,6 +883,19 @@ class Terminal extends Component
     {
         $this->completed = null;
         $this->dispatch('focus-search');
+    }
+
+    public function emailReceipt(ReceiptService $receipts): void
+    {
+        $sale = $this->completed ? Sale::with('customer')->find($this->completed['id']) : null;
+        abort_unless($sale && feature('email_documents') && auth()->user()->can('document', $sale), 403);
+        if (! $sale->customer?->email) {
+            $this->dispatch('toast', message: __('The customer has no email address.'), type: 'warning');
+
+            return;
+        }
+        $receipts->sendEmail($sale, $sale->customer->email, auth()->user());
+        $this->dispatch('toast', message: __('Invoice emailed to :e.', ['e' => $sale->customer->email]));
     }
 
     public function smsReceipt(): void
@@ -785,6 +924,7 @@ class Terminal extends Component
                 'unit_price' => $l['unit_price'],
                 'price_override' => $l['price_override'],
                 'scale_barcode' => $l['scale_barcode'] ?? null,
+                'serials' => $l['serials'] ?? [],
                 'discount_type' => $l['discount_type'],
                 'discount_value' => $l['discount_value'],
             ], $this->cart)),
@@ -793,6 +933,8 @@ class Terminal extends Component
             'cart_discount_value' => $this->cartDiscountValue,
             'loyalty_points' => $this->loyaltyPoints,
             'note' => $this->note ?: null,
+            'prescription_ref' => $this->prescriptionRef ?: null,
+            'prescriber' => $this->prescriber ?: null,
         ];
     }
 
@@ -805,7 +947,7 @@ class Terminal extends Component
     public function totals(): array
     {
         $calculator = CartCalculator::fromSettings();
-        $lines = array_map(fn ($l) => ['qty' => $l['qty'], 'unit_price' => $l['unit_price'], 'discount_type' => $l['discount_type'], 'discount_value' => $l['discount_value'], 'tax_rate' => $l['tax_rate']], $this->cart);
+        $lines = array_map(fn ($l) => ['qty' => $l['qty'], 'unit_price' => $l['unit_price'], 'promo_discount' => $l['promo_discount'] ?? 0, 'discount_type' => $l['discount_type'], 'discount_value' => $l['discount_value'], 'tax_rate' => $l['tax_rate']], $this->cart);
         $totals = $calculator->calculate($lines, $this->cartDiscountType, $this->cartDiscountValue);
         if ($this->loyaltyPoints > 0 && $this->customer) {
             $value = app(LoyaltyService::class)->valueOf(min($this->loyaltyPoints, $this->customer->loyalty_points));

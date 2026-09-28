@@ -94,7 +94,7 @@ class RecurringExpensesTable extends DataTable
     {
         return parent::render()->with([
             'categories' => ExpenseCategory::where('is_active', true)->orderBy('name')->pluck('name', 'id'),
-            'methods' => collect(PaymentMethod::cases())->reject(fn ($m) => in_array($m, [PaymentMethod::Credit, PaymentMethod::StoreCredit], true))->mapWithKeys(fn ($m) => [$m->value => $m->label()]),
+            'methods' => collect(PaymentMethod::cases())->reject(fn ($m) => $m->isAccount())->mapWithKeys(fn ($m) => [$m->value => $m->label()]),
         ]);
     }
 

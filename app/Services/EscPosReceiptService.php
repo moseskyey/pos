@@ -55,6 +55,15 @@ class EscPosReceiptService
         foreach ($sale->items as $item) {
             $p->text($item->name);
             $p->row('  '.qty($item->quantity).' '.$item->unit_name.' x '.$m($item->unit_price), $m(Money::mul($item->quantity, $item->unit_price)));
+            if ($item->relationLoaded('serials') && $item->serials->isNotEmpty()) {
+                $p->text('  S/N: '.$item->serials->pluck('serial')->join(', '));
+                if ($item->serials->first()->warranty_until) {
+                    $p->text('  '.__('Warranty until :d', ['d' => format_date($item->serials->first()->warranty_until)]));
+                }
+            }
+            if ($item->promo_discount > 0) {
+                $p->row('  '.($item->promotion_name ?: __('Promotion')), '-'.$m($item->promo_discount));
+            }
             if ($item->discount_amount > 0) {
                 $p->row('  '.__('Discount'), '-'.$m($item->discount_amount));
             }

@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Support\Features;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -42,6 +43,8 @@ class SettingsRequest extends FormRequest
                 'receipt_print_mode' => ['required', Rule::in(['browser', 'escpos'])],
                 'receipt_drawer_kick' => ['boolean'],
             ],
+            'features' => collect(Features::all())->keys()
+                ->mapWithKeys(fn ($key) => [str_replace('.', '_', Features::settingKey($key)) => ['boolean']])->all(),
             'pos' => [
                 'pos_negative_stock' => ['required', Rule::in(['block', 'warn', 'allow'])],
                 'pos_max_discount_percent' => ['required', 'numeric', 'between:0,100'],
@@ -55,6 +58,7 @@ class SettingsRequest extends FormRequest
                 'loyalty_point_value' => ['required', 'numeric', 'min:0'],
                 'inventory_costing' => ['required', Rule::in(['average', 'last'])],
                 'inventory_expiry_alert_days' => ['required', 'integer', 'between:1,365'],
+                'credit_default_days' => ['sometimes', 'integer', 'between:0,365'],
             ],
             'payments' => [
                 'payments_cash' => ['boolean'], 'payments_cash_usd' => ['boolean'], 'payments_mpesa' => ['boolean'], 'payments_tigopesa' => ['boolean'],

@@ -33,6 +33,11 @@
     .stat-trend { font-size: .75rem; margin-top: .35rem; }
 }
 
+// Settings → Features: module icon
+.feature-icon {
+    width: 40px; height: 40px; border-radius: .75rem; display: grid; place-items: center; font-size: 1.15rem; flex-shrink: 0;
+}
+
 @each $name, $color in (primary: $primary, success: $success, danger: $danger, warning: $warning, info: $info, secondary: $secondary) {
     .bg-#{$name}-soft { background-color: rgba($color, .12) !important; }
     .text-bg-#{$name}-soft { background-color: rgba($color, .12) !important; color: shade-color($color, 15%) !important; }

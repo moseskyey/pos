@@ -119,6 +119,21 @@
                     </x-card>
                 @endif
 
+                @if (feature('pharmacy') || $product->generic_name || $product->requires_prescription)
+                    <x-card :title="__('Pharmacy')" icon="bi-capsule" class="mt-4">
+                        <div class="row">
+                            <div class="col-md-6"><x-input name="generic_name" :label="__('Generic name')" :value="$product->generic_name" :placeholder="__('e.g. Paracetamol')" /></div>
+                            <div class="col-md-3"><x-input name="strength" :label="__('Strength')" :value="$product->strength" placeholder="500mg" /></div>
+                            <div class="col-md-3">
+                                <x-select name="dosage_form" :label="__('Form')" :value="$product->dosage_form" :placeholder="__('—')"
+                                          :options="collect(['tablet', 'capsule', 'syrup', 'suspension', 'injection', 'cream', 'ointment', 'drops', 'inhaler', 'sachet', 'other'])->mapWithKeys(fn ($f) => [$f => __(ucfirst($f))])->all()" />
+                            </div>
+                            <div class="col-12"><x-toggle name="requires_prescription" :label="__('Prescription only (Rx)')" :checked="$product->requires_prescription" :help="__('The till asks for the prescription number before selling it.')" class="mb-0" /></div>
+                        </div>
+                    </x-card>
+                @endif
+
+                @if (feature('variants') || $product->has_variants)
                 <x-card :title="__('Variants')" icon="bi-grid-3x3" class="mt-4" :subtitle="__('For boutiques: sizes, colours… each variant has its own SKU, stock and price.')">
                     <input type="hidden" name="has_variants" value="0">
                     <div class="form-check form-switch mb-3">
@@ -169,6 +184,49 @@
                         <button type="button" class="btn btn-sm btn-soft-primary" @click="addVariant()"><i class="bi bi-plus-lg"></i> {{ __('Add variant') }}</button>
                     </div>
                 </x-card>
+                @endif
+
+                @if (feature('bundles') || $product->is_bundle)
+                    @php
+                        $bundleRows = old('bundle_items', $product->relationLoaded('bundleItems')
+                            ? $product->bundleItems->map(fn ($b) => ['component_id' => $b->component_id, 'quantity' => (float) $b->quantity])->values()->all() : []);
+                    @endphp
+                    <x-card :title="__('Bundle / kit')" icon="bi-box2-heart" class="mt-4" :subtitle="__('Sell several items as one product. Stock is taken from each item.')"
+                            x-data="{ isBundle: @js((bool) old('is_bundle', $product->is_bundle)), items: @js(array_values($bundleRows)) }">
+                        <input type="hidden" name="is_bundle" value="0">
+                        <div class="form-check form-switch mb-3">
+                            <input class="form-check-input" type="checkbox" role="switch" id="is_bundle" name="is_bundle" value="1" x-model="isBundle"
+                                   @change="if (isBundle && ! items.length) items.push({ component_id: '', quantity: 1 })">
+                            <label class="form-check-label" for="is_bundle">{{ __('This product is a bundle of other items') }}</label>
+                        </div>
+                        <div x-show="isBundle" x-cloak>
+                            <div class="table-responsive">
+                                <table class="table table-sm align-middle">
+                                    <thead><tr><th>{{ __('Item') }}</th><th style="width:130px">{{ __('Qty per bundle') }}</th><th style="width:48px"></th></tr></thead>
+                                    <tbody>
+                                    <template x-for="(row, i) in items" :key="i">
+                                        <tr>
+                                            <td>
+                                                <select class="form-select form-select-sm" :name="`bundle_items[${i}][component_id]`" x-model="row.component_id" :disabled="! isBundle" aria-label="{{ __('Item') }}" required>
+                                                    <option value="">{{ __('Choose an item…') }}</option>
+                                                    @foreach ($bundleOptions as $id => $label)<option value="{{ $id }}">{{ $label }}</option>@endforeach
+                                                </select>
+                                            </td>
+                                            <td><input type="number" step="0.001" min="0.001" class="form-control form-control-sm" :name="`bundle_items[${i}][quantity]`" x-model="row.quantity" :disabled="! isBundle" aria-label="{{ __('Qty per bundle') }}" required></td>
+                                            <td><button type="button" class="btn btn-sm btn-light text-danger" @click="items.splice(i, 1)" aria-label="{{ __('Remove') }}"><i class="bi bi-trash"></i></button></td>
+                                        </tr>
+                                    </template>
+                                    </tbody>
+                                </table>
+                            </div>
+                            @foreach ($errors->getMessages() as $key => $messages)
+                                @if (str_starts_with($key, 'bundle_items'))<div class="text-danger small">{{ $messages[0] }}</div>@endif
+                            @endforeach
+                            <button type="button" class="btn btn-sm btn-soft-primary" @click="items.push({ component_id: '', quantity: 1 })"><i class="bi bi-plus-lg"></i> {{ __('Add item') }}</button>
+                            <p class="small text-body-secondary mt-2 mb-0"><i class="bi bi-info-circle"></i> {{ __('The bundle\'s cost is the total cost of its items. It does not keep stock of its own.') }}</p>
+                        </div>
+                    </x-card>
+                @endif
             </div>
 
             <div class="col-lg-4">
@@ -188,8 +246,18 @@
 
                 <x-card :title="__('Inventory')" class="mt-4">
                     <x-toggle name="track_stock" :label="__('Track stock')" :checked="$product->track_stock" :help="__('Turn off for services.')" />
-                    <x-toggle name="track_batches" :label="__('Track batches & expiry')" :checked="$product->track_batches" :help="__('Pharmacy / food items. FEFO on sale.')" />
-                    <x-toggle name="is_weighted" :label="__('Sold by weight (scale barcode)')" :checked="$product->is_weighted" />
+                    @if (feature('batches') || $product->track_batches)
+                        <x-toggle name="track_batches" :label="__('Track batches & expiry')" :checked="$product->track_batches" :help="__('Pharmacy / food items. FEFO on sale.')" />
+                    @endif
+                    @if (feature('scale_items') || $product->is_weighted)
+                        <x-toggle name="is_weighted" :label="__('Sold by weight (scale barcode)')" :checked="$product->is_weighted" />
+                    @endif
+                    @if (feature('serials') || $product->track_serials)
+                        <div x-data="{ serials: @js((bool) old('track_serials', $product->track_serials)) }">
+                            <x-toggle name="track_serials" :label="__('Track serial / IMEI numbers')" :checked="$product->track_serials" x-model="serials" :help="__('Each unit sold needs its serial scanned at the till.')" />
+                            <div x-show="serials" x-cloak><x-input name="warranty_months" type="number" min="0" max="120" :label="__('Warranty')" :value="$product->warranty_months" :suffix="__('months')" /></div>
+                        </div>
+                    @endif
                     <x-input name="reorder_level" type="number" step="0.001" min="0" :label="__('Reorder level')" :value="$product->reorder_level !== null ? (float) $product->reorder_level : 0" :help="__('Low-stock alert at or below this quantity.')" class="mb-0" />
                 </x-card>
 

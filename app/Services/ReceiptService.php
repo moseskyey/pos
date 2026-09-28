@@ -3,16 +3,19 @@
 namespace App\Services;
 
 use App\Jobs\SendSms;
+use App\Mail\SaleDocumentMail;
 use App\Models\Sale;
+use App\Models\User;
 use App\Support\Money;
 use App\Support\QrCode;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 
 class ReceiptService
 {
     public function data(Sale $sale): array
     {
-        $sale->loadMissing(['items', 'payments', 'customer', 'cashier', 'branch', 'register']);
+        $sale->loadMissing(['items.serials', 'payments', 'customer', 'cashier', 'branch', 'register']);
         $branch = $sale->branch;
         $taxBreakdown = $sale->items->groupBy(fn ($i) => (string) (float) $i->tax_rate)
             ->map(fn ($items, $rate) => [
@@ -53,6 +56,14 @@ class ReceiptService
             'paid' => money($sale->paid_total),
             'balance' => $sale->balance_due > 0 ? ', '.__('balance :b', ['b' => money($sale->balance_due)]) : '',
         ]);
+    }
+
+    /** Queue the invoice / quotation PDF to an email address and log who sent it. */
+    public function sendEmail(Sale $sale, string $email, User $user, ?string $note = null): void
+    {
+        Mail::to($email)->queue(new SaleDocumentMail($sale, $note));
+        activity('sales')->causedBy($user)->performedOn($sale)->withProperties(['email' => $email])
+            ->log($sale->status->value === 'quotation' ? 'Quotation emailed' : 'Invoice emailed');
     }
 
     public function sendSms(Sale $sale): bool

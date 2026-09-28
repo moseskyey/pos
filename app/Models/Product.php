@@ -20,9 +20,9 @@ class Product extends Model
     use HasFactory, LogsActivity, SoftDeletes;
 
     protected $fillable = [
-        'parent_id', 'name', 'sku', 'category_id', 'brand_id', 'unit_id',
+        'parent_id', 'name', 'generic_name', 'strength', 'dosage_form', 'requires_prescription', 'sku', 'category_id', 'brand_id', 'unit_id',
         'cost_price', 'retail_price', 'wholesale_price', 'wholesale_min_qty', 'tax_type',
-        'reorder_level', 'track_stock', 'track_batches', 'is_weighted', 'has_variants', 'variant_attributes',
+        'reorder_level', 'track_stock', 'track_batches', 'track_serials', 'warranty_months', 'is_weighted', 'has_variants', 'is_bundle', 'variant_attributes',
         'image_path', 'description', 'is_active',
     ];
 
@@ -35,6 +35,9 @@ class Product extends Model
         'track_batches' => false,
         'is_weighted' => false,
         'has_variants' => false,
+        'is_bundle' => false,
+        'track_serials' => false,
+        'requires_prescription' => false,
         'is_active' => true,
     ];
 
@@ -51,6 +54,10 @@ class Product extends Model
             'track_batches' => 'boolean',
             'is_weighted' => 'boolean',
             'has_variants' => 'boolean',
+            'is_bundle' => 'boolean',
+            'track_serials' => 'boolean',
+            'warranty_months' => 'integer',
+            'requires_prescription' => 'boolean',
             'variant_attributes' => 'array',
             'is_active' => 'boolean',
         ];
@@ -65,6 +72,27 @@ class Product extends Model
     }
 
     // Relationships ----------------------------------------------------------
+
+    /** Components issued from stock when this bundle / kit is sold. */
+    public function bundleItems(): HasMany
+    {
+        return $this->hasMany(BundleItem::class, 'bundle_id');
+    }
+
+    public function branchPrices(): HasMany
+    {
+        return $this->hasMany(BranchPrice::class);
+    }
+
+    public function serials(): HasMany
+    {
+        return $this->hasMany(ProductSerial::class);
+    }
+
+    public function suppliers(): HasMany
+    {
+        return $this->hasMany(ProductSupplier::class);
+    }
 
     public function category(): BelongsTo
     {
@@ -148,6 +176,7 @@ class Product extends Model
 
         return $query->where(fn ($q) => $q->where('name', 'like', "%{$term}%")
             ->orWhere('sku', 'like', "{$term}%")
+            ->when(feature('pharmacy'), fn ($q) => $q->orWhere('generic_name', 'like', "%{$term}%"))
             ->orWhereHas('barcodes', fn ($b) => $b->where('barcode', $term)));
     }
 

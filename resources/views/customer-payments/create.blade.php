@@ -10,7 +10,9 @@
                     <div class="row">
                         <div class="col-md-6"><x-input name="amount" type="number" min="0" step="0.01" :label="__('Amount')" prefix="TSh" required x-bind:value="balances[customer] ?? ''" /></div>
                         <div class="col-md-6"><x-select name="method" :label="__('Method')" :options="$methods->mapWithKeys(fn ($m) => [$m->value => $m->label()])" required x-model="method" /></div>
-                        <div class="col-md-6"><x-input name="reference" :label="__('Reference')" :placeholder="__('M-Pesa / bank reference')" /></div>
+                        <div class="col-md-6"><x-input name="reference" :label="__('Reference')" :placeholder="__('M-Pesa / bank reference / cheque no.')" /></div>
+                        <div class="col-md-6" x-show="method === 'cheque'" x-cloak><x-input name="bank" :label="__('Bank')" x-bind:disabled="method !== 'cheque'" /></div>
+                        <div class="col-md-6" x-show="method === 'cheque'" x-cloak><x-input name="cheque_date" type="date" :label="__('Cheque date')" :value="today()->toDateString()" :help="__('A later date makes it post-dated.')" x-bind:disabled="method !== 'cheque'" /></div>
                         <div class="col-md-6"><x-input name="note" :label="__('Note')" /></div>
                     </div>
                 </x-card>

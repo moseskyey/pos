@@ -98,7 +98,7 @@ class SaleActions extends Component
     {
         return view('livewire.sales.sale-actions', [
             'sale' => $this->sale,
-            'methods' => collect(PaymentMethod::enabled())->reject(fn ($m) => in_array($m, [PaymentMethod::Credit, PaymentMethod::StoreCredit], true)),
+            'methods' => collect(PaymentMethod::enabled())->reject(fn ($m) => $m->isAccount()),
         ]);
     }
 }

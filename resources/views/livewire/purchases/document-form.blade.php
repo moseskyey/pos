@@ -29,6 +29,12 @@
                                     <td data-label="{{ __('Product') }}">
                                         <div class="fw-semibold">{{ $item['name'] }}</div>
                                         <div class="small text-body-secondary">{{ $item['sku'] }} · {{ $item['unit'] }} @if ($item['tax_rate'] > 0)<span class="badge text-bg-secondary-soft">VAT {{ $item['tax_rate'] }}%</span>@endif</div>
+                                        @if ($mode === 'receipt' && ! empty($item['serialized']))
+                                            <textarea class="form-control form-control-sm font-monospace mt-1" rows="2" wire:model.blur="items.{{ $i }}.serials"
+                                                      placeholder="{{ __('Serial / IMEI numbers, one per line (optional)') }}" aria-label="{{ __('Serial numbers for :p', ['p' => $item['name']]) }}"></textarea>
+                                            @php $serialCount = count(\App\Services\SerialService::parse($item['serials'] ?? '')); @endphp
+                                            @if ($serialCount)<div class="small {{ $serialCount === (int) $item['quantity'] ? 'text-success' : 'text-danger' }}">{{ __(':n of :q serials', ['n' => $serialCount, 'q' => qty($item['quantity'])]) }}</div>@endif
+                                        @endif
                                         @if ($mode === 'receipt' && $item['batched'])
                                             <div class="d-flex gap-1 mt-1">
                                                 <input type="text" class="form-control form-control-sm" wire:model="items.{{ $i }}.batch_no" placeholder="{{ __('Batch no.') }}">

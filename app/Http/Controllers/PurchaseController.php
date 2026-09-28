@@ -175,7 +175,7 @@ class PurchaseController extends Controller
             'suppliers' => Supplier::where('balance', '>', 0)->orderBy('name')->get(),
             'selected' => $supplierId,
             'bills' => $supplierId ? SupplierBill::where('supplier_id', $supplierId)->where('status', '!=', 'paid')->orderBy('bill_date')->get() : collect(),
-            'methods' => collect(PaymentMethod::cases())->reject(fn ($m) => in_array($m, [PaymentMethod::Credit, PaymentMethod::StoreCredit], true)),
+            'methods' => collect(PaymentMethod::cases())->reject(fn ($m) => $m->isAccount()),
         ]);
     }
 
@@ -192,7 +192,8 @@ class PurchaseController extends Controller
             $allocations['from_drawer'] = true;
         }
         try {
-            $service->pay(Supplier::findOrFail($data['supplier_id']), $data['amount'], PaymentMethod::from($data['method']), $request->user(), $branchId, $allocations, $data['reference'] ?? null, $data['note'] ?? null, $data['paid_at']);
+            $service->pay(Supplier::findOrFail($data['supplier_id']), $data['amount'], PaymentMethod::from($data['method']), $request->user(), $branchId, $allocations, $data['reference'] ?? null, $data['note'] ?? null, $data['paid_at'],
+                ['bank' => $data['bank'] ?? null, 'cheque_date' => $data['cheque_date'] ?? null]);
         } catch (BusinessRuleException $e) {
             return back()->withInput()->with('error', $e->getMessage());
         }

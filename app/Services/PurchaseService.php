@@ -8,6 +8,7 @@ use App\Models\GoodsReceipt;
 use App\Models\GoodsReceiptItem;
 use App\Models\Product;
 use App\Models\ProductStock;
+use App\Models\ProductSupplier;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseReturn;
 use App\Models\Supplier;
@@ -134,6 +135,20 @@ class PurchaseService
                 $this->updateCost($product, $line['quantity'], $line['unit_cost'], $user, $receipt->number);
                 $this->stock->receive($branchId, $product, $line['quantity'], MovementType::Purchase, $receipt, $line['unit_cost'],
                     ($source['batch_no'] ?? null) ?: ($product->track_batches ? $receipt->number : null), ($source['expiry_date'] ?? null) ?: null, $supplier->name);
+
+                // Serial / IMEI numbers typed or scanned on the GRN (optional; they can be recorded at sale time instead).
+                $serials = SerialService::parse($source['serials'] ?? null);
+                if ($serials && $product->track_serials && feature('serials')) {
+                    if (count($serials) !== (int) round((float) $line['quantity']) || (float) $line['quantity'] != floor((float) $line['quantity'])) {
+                        throw new BusinessRuleException(__(':p: enter one serial for each of the :q items received (got :n).', ['p' => $product->name, 'q' => qty($line['quantity']), 'n' => count($serials)]));
+                    }
+                    app(SerialService::class)->register($product, $branchId, $serials, $user, $receipt);
+                }
+
+                ProductSupplier::query()->updateOrCreate(
+                    ['product_id' => $product->id, 'supplier_id' => $supplier->id],
+                    ['last_cost' => $line['unit_cost'], 'last_received_at' => $receipt->received_at ?? now()],
+                );
 
                 if (! empty($source['purchase_order_item_id']) && $order) {
                     $poItem = $order->items()->find($source['purchase_order_item_id']);

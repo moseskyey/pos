@@ -68,6 +68,25 @@ class ProductImportController extends Controller
         return redirect()->route('products.import');
     }
 
+    /** Download the rows that failed validation, with their errors, to fix and re-upload. */
+    public function errors(Request $request): BinaryFileResponse
+    {
+        $this->authorize('products.import');
+        $token = $request->session()->get('product_import');
+        abort_unless($token && Storage::disk('local')->exists("imports/$token.json"), 404);
+
+        $rows = collect(json_decode(Storage::disk('local')->get("imports/$token.json"), true))
+            ->filter(fn ($row) => $row['errors'])
+            ->map(fn ($row) => [...array_values(array_merge(array_fill_keys(array_keys(ProductImportService::COLUMNS), null), array_intersect_key($row['data'], ProductImportService::COLUMNS))), $row['row'], implode(' ', $row['errors'])])
+            ->values()->all();
+        abort_if($rows === [], 404);
+
+        return Excel::download(
+            new ArrayExport([...ProductImportService::headings(), __('Row'), __('Errors')], $rows, 'Errors'),
+            'product-import-errors-'.now()->format('Ymd-His').'.xlsx',
+        );
+    }
+
     public function template(Request $request): BinaryFileResponse
     {
         $this->authorize('products.import');

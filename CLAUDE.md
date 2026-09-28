@@ -391,6 +391,27 @@ tests/Feature  tests/Unit
     - Central models set `$connection = 'central'`; business code keeps using the default connection.
     - Business-only artisan commands run through `tenants:run`.
     - Tests run inside test business #1 (`tests/RefreshTenantDatabase.php`).
+- Feature switches (Batch 1):
+  - Optional modules are listed in `config('dukapos.features')`; check them with `feature('key')`, guard routes with
+    the `feature:key` middleware, and pass a 6th element to `App\Support\Navigation` items.
+  - Business-type presets live in `config('dukapos.business_presets')`.
+  - Emailing invoices/quotations (`SaleDocumentMail`), import error report, customer credit terms and due dates.
+- Selling features (Batch 2):
+  - `PromotionService` works out promotion discounts on the server (`sale_items.promo_discount`); the till only
+    displays them. Promotions are not cashier discounts: they skip the discount limit and the below-cost check.
+  - `PriceResolver::resolve(..., $branchId)` applies `branch_prices` when that feature is on.
+  - Bundles (`products.is_bundle` + `bundle_items`) issue their components' stock; the components sold are
+    snapshotted on `sale_items.bundle_components` for returns.
+  - Gift cards are `PaymentMethod::GiftCard`; `GiftCardService` locks, spends and restores balances with a ledger in
+    `gift_card_transactions`. `PaymentMethod::isAccount()` marks methods that are not new money.
+- Shop-type features (Batch 3):
+  - `SerialService`: `products.track_serials` lines need one serial per unit at checkout; `product_serials` holds
+    in_stock / sold / defective units with warranty end dates. Unregistered serials are recorded at sale time.
+  - Pharmacy: `generic_name`, `strength`, `dosage_form`, `requires_prescription`; `SaleService::checkPrescription()`
+    needs `cart['prescription_ref']` for Rx items.
+  - `PaymentMethod::Cheque` + `ChequeService`: every cheque payment (sale, customer, supplier) gets a `cheques` row;
+    bouncing it reverses the payment and reopens paid invoices/bills.
+  - `product_suppliers` is updated on every GRN; `ReorderService` prefers `is_preferred` suppliers.
 
 ---
 

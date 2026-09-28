@@ -19,7 +19,7 @@ class DemoSeeder extends Seeder
             UserSeeder::class,
         ]);
 
-        foreach (['CatalogSeeder', 'InventorySeeder', 'CustomerSeeder', 'SupplierSeeder', 'PurchaseSeeder', 'SalesSeeder', 'ExpenseSeeder'] as $seeder) {
+        foreach (['CatalogSeeder', 'InventorySeeder', 'CustomerSeeder', 'SupplierSeeder', 'PurchaseSeeder', 'SalesSeeder', 'ExpenseSeeder', 'SellingSeeder', 'ShopTypesSeeder'] as $seeder) {
             $class = __NAMESPACE__.'\\'.$seeder;
             if (class_exists($class)) {
                 $this->call($class);

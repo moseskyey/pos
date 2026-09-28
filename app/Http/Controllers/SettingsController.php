@@ -2,9 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\ApplyFeaturePresetRequest;
 use App\Http\Requests\SettingsRequest;
 use App\Models\Customer;
 use App\Services\SettingsService;
+use App\Support\Features;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -13,6 +15,7 @@ class SettingsController extends Controller
 {
     public const GROUPS = [
         'business' => ['Business profile', 'bi-shop'],
+        'features' => ['Features', 'bi-toggles'],
         'currency' => ['Currency & tax', 'bi-currency-exchange'],
         'receipt' => ['Receipts', 'bi-receipt'],
         'pos' => ['POS & inventory', 'bi-upc-scan'],
@@ -25,9 +28,10 @@ class SettingsController extends Controller
     /** Setting key prefixes stored by each group. */
     protected const GROUP_KEYS = [
         'business' => ['business.'],
+        'features' => ['features.', 'loyalty.enabled'],
         'currency' => ['currency.', 'tax.'],
         'receipt' => ['receipt.'],
-        'pos' => ['pos.', 'loyalty.', 'inventory.'],
+        'pos' => ['pos.', 'loyalty.', 'inventory.', 'credit.'],
         'payments' => ['payments.'],
         'notifications' => ['sms.', 'notify.', 'fiscal.'],
         'localisation' => ['locale.'],
@@ -48,6 +52,8 @@ class SettingsController extends Controller
             'groups' => self::GROUPS,
             's' => $settings->all(),
             'customers' => $customers,
+            'features' => Features::all(),
+            'presets' => Features::presets(),
         ]);
     }
 
@@ -70,7 +76,8 @@ class SettingsController extends Controller
             if ($settings->isEncrypted($key) && ($value === null || $value === '')) {
                 continue;
             }
-            $default = config("dukapos.settings.$key");
+            // Setting keys contain dots, so look them up in the array rather than by config() path.
+            $default = config('dukapos.settings')[$key] ?? null;
             if (is_bool($default)) {
                 $value = (bool) $value;
             } elseif (is_int($default) && is_numeric($value)) {
@@ -92,5 +99,20 @@ class SettingsController extends Controller
             ->log("Settings updated: $group");
 
         return redirect()->route('settings.edit', $group)->with('success', __('Settings saved.'));
+    }
+
+    /** Switch modules on/off to suit a business type (supermarket, pharmacy, …). */
+    public function applyPreset(ApplyFeaturePresetRequest $request, SettingsService $settings): RedirectResponse
+    {
+        $preset = $request->validated('preset');
+        $values = Features::presetValues($preset);
+        $settings->set($values);
+
+        activity('settings')
+            ->withProperties(['preset' => $preset, 'keys' => array_keys($values)])
+            ->log("Business type preset applied: $preset");
+
+        return redirect()->route('settings.edit', 'features')
+            ->with('success', __(':type setup applied.', ['type' => __(Features::presets()[$preset]['label'])]));
     }
 }

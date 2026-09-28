@@ -3,16 +3,22 @@
 namespace App\Http\Controllers;
 
 use App\Enums\TaxType;
+use App\Http\Requests\BranchPricesRequest;
 use App\Http\Requests\ProductRequest;
+use App\Http\Requests\ProductSupplierRequest;
 use App\Models\Brand;
 use App\Models\Category;
 use App\Models\Product;
 use App\Models\ProductBatch;
+use App\Models\ProductSerial;
 use App\Models\ProductStock;
+use App\Models\ProductSupplier;
 use App\Models\SaleItem;
+use App\Models\Supplier;
 use App\Models\Unit;
 use App\Models\UnitConversion;
 use App\Services\ProductService;
+use App\Services\StockService;
 use App\Support\BranchContext;
 use App\Support\Sql;
 use Illuminate\Http\RedirectResponse;
@@ -63,7 +69,7 @@ class ProductController extends Controller
     public function show(Product $product, BranchContext $context): View
     {
         $this->authorize('view', $product);
-        $product->load(['category', 'brand', 'unit', 'barcodes.productUnit.unit', 'units.unit', 'parent',
+        $product->load(['category', 'brand', 'unit', 'barcodes.productUnit.unit', 'units.unit', 'parent', 'branchPrices', 'bundleItems.component.unit',
             'variants' => fn ($q) => $q->withSum(['stocks as stock_qty' => fn ($s) => $s->whereIn('branch_id', $context->activeIds())], 'quantity')]);
 
         $stocks = class_exists(ProductStock::class)
@@ -98,13 +104,31 @@ class ProductController extends Controller
 
         $priceHistory = $product->priceHistories()->with('user')->limit(20)->get();
 
-        return view('products.show', compact('product', 'stocks', 'batches', 'salesChart', 'priceHistory'));
+        $branchPrices = feature('branch_prices') && ! $product->has_variants
+            ? $context->accessibleBranches()->map(fn ($branch) => [
+                'branch' => $branch,
+                'price' => $product->branchPrices->first(fn ($p) => $p->branch_id === $branch->id && $p->product_unit_id === null),
+            ])
+            : collect();
+
+        $bundle = $product->is_bundle ? $product->bundleItems->map(fn ($item) => [
+            'item' => $item,
+            'available' => $context->currentId() ? app(StockService::class)->available($context->currentId(), $item->component_id) : null,
+        ]) : collect();
+
+        $productSuppliers = $product->suppliers()->with('supplier:id,name')->orderByDesc('is_preferred')->orderByDesc('last_received_at')->get();
+        $supplierOptions = auth()->user()->canAny(['suppliers.manage', 'purchases.manage']) ? Supplier::query()->where('is_active', true)->orderBy('name')->pluck('name', 'id') : collect();
+        $serialCounts = $product->track_serials
+            ? ProductSerial::query()->where('product_id', $product->id)->selectRaw('status, count(*) as n')->groupBy('status')->pluck('n', 'status')
+            : collect();
+
+        return view('products.show', compact('product', 'stocks', 'batches', 'salesChart', 'priceHistory', 'branchPrices', 'bundle', 'productSuppliers', 'supplierOptions', 'serialCounts'));
     }
 
     public function edit(Product $product): View
     {
         $this->authorize('update', $product);
-        $product->load(['barcodes', 'units.barcodes', 'variants.barcodes']);
+        $product->load(['barcodes', 'units.barcodes', 'variants.barcodes', 'bundleItems']);
 
         return view('products.form', $this->formData($product));
     }
@@ -138,6 +162,45 @@ class ProductController extends Controller
             'units' => $units->mapWithKeys(fn ($u) => [$u->id => $u->label()]),
             'conversions' => UnitConversion::query()->get(['from_unit_id', 'to_unit_id', 'factor']),
             'taxTypes' => TaxType::options(),
+            'bundleOptions' => feature('bundles') || $product->is_bundle
+                ? Product::query()->where('is_bundle', false)->where('has_variants', false)->where('is_active', true)
+                    ->when($product->exists, fn ($q) => $q->whereKeyNot($product->id))
+                    ->orderBy('name')->limit(1000)->get(['id', 'name', 'sku', 'cost_price'])
+                    ->mapWithKeys(fn ($p) => [$p->id => $p->name.($p->sku ? ' · '.$p->sku : '')])
+                : collect(),
         ];
+    }
+
+    /** Link a supplier to this product (their code, lead time, preferred). */
+    public function storeSupplier(ProductSupplierRequest $request, Product $product): RedirectResponse
+    {
+        $data = $request->validated();
+        DB::transaction(function () use ($product, $data) {
+            if (! empty($data['is_preferred'])) {
+                $product->suppliers()->update(['is_preferred' => false]);
+            }
+            $product->suppliers()->updateOrCreate(['supplier_id' => $data['supplier_id']], [
+                'supplier_sku' => $data['supplier_sku'] ?? null, 'lead_time_days' => $data['lead_time_days'] ?? null, 'is_preferred' => (bool) ($data['is_preferred'] ?? false),
+            ]);
+        });
+
+        return redirect()->route('products.show', $product)->with('success', __('Supplier saved.'));
+    }
+
+    public function destroySupplier(Request $request, Product $product, ProductSupplier $productSupplier): RedirectResponse
+    {
+        abort_unless($request->user()->canAny(['suppliers.manage', 'purchases.manage']) && $productSupplier->product_id === $product->id, 403);
+        $productSupplier->delete();
+
+        return redirect()->route('products.show', $product)->with('success', __('Supplier removed from this product.'));
+    }
+
+    /** Per-branch selling prices (Settings → Features → Branch prices). */
+    public function branchPrices(BranchPricesRequest $request, Product $product): RedirectResponse
+    {
+        $data = $request->validated();
+        $this->products->saveBranchPrices($product, $data['prices'] ?? [], $request->user(), $data['reason'] ?? null);
+
+        return redirect()->route('products.show', $product)->with('success', __('Branch prices saved.'));
     }
 }

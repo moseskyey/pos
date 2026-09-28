@@ -97,12 +97,17 @@ database user must be allowed to create one database per business (see [DEPLOY.m
 - Manager PIN overrides.
 - An activity log records every sensitive action.
 - A settings module, dark mode, and an English/Kiswahili switcher.
+- **Feature switches per business** (Settings → Features): quotations, layaway, credit terms, loyalty, variants,
+  batches & expiry, weighed items, transfers, stock takes, expenses, WhatsApp sharing, email documents, promotions,
+  branch prices, bundles, gift cards, serial numbers, pharmacy and cheques. Switched-off
+  modules disappear from menus and screens, and their pages return 404. One-click presets set them up for a
+  supermarket, pharmacy, hardware shop, boutique, electronics shop, cosmetics shop or wholesaler.
 
 **Catalog.**
 - Categories (two levels), brands, and units with conversions (carton ↔ piece).
 - Retail and wholesale prices, with a wholesale price applied from a set quantity.
 - Multiple barcodes per product, EAN-13 generation, scale (weighed) barcodes, and variants (size/colour).
-- Price history, bulk price updates, Excel import/export with preview, and barcode label printing.
+- Price history, bulk price updates, Excel import/export with preview and a downloadable error report, and barcode label printing.
 
 **Inventory.**
 - An append-only stock ledger and per-branch stock levels.
@@ -117,6 +122,21 @@ database user must be allowed to create one database per business (see [DEPLOY.m
 - Keyboard shortcuts (F2–F10, Ctrl+Enter, Esc, +/−, Del, ?) and a scanner-friendly search.
 - Hold and resume sales.
 - Line and cart discounts, split payments, change calculation, and credit sales within limits.
+- **Promotions** applied automatically at the till: % off, amount off, buy X get Y free and "N for a price",
+  limited by dates, weekdays, happy-hour times, branches, categories or products. The best offer wins, it shows on
+  the cart and receipt, and it never counts towards the cashier discount limit.
+- **Gift cards & vouchers**: sell a gift card (cash goes into the drawer) or give a complimentary voucher, then spend
+  it in parts at any branch as a payment method. Voids put the money back on the card; every change is in its history.
+- **Branch prices**: a different retail/wholesale price per branch, set on the product page.
+- **Bundles / kits**: one product (e.g. a hamper) that sells several items; stock and cost come from each item, and
+  voids and returns put the items back.
+- **Serial / IMEI numbers** for phones and appliances: record them on the GRN or by hand, scan the IMEI at the till
+  (it adds that exact unit), print them with the warranty end date on the receipt, and look up any serial to see
+  who bought it and whether it is under warranty. Voids and returns put serials back (or mark them defective).
+- **Pharmacy**: generic name, strength and dosage form (searchable at the till); prescription-only items need the Rx
+  number before the sale, and it prints on the receipt.
+- **Cheques** at the till, for customer debts and to suppliers, including post-dated ones. The Cheques page tracks
+  them until they clear; a bounced cheque reverses its payment and reopens the invoices it paid.
 - Mobile money STK push, and an idle lock screen that needs a PIN to unlock.
 - Receipts on 58/80 mm thermal paper with a QR verification code, plus A4 tax invoices and delivery notes.
 - Direct printing to USB or serial thermal printers (ESC/POS) from Chrome or Edge, with the cash drawer
@@ -133,10 +153,13 @@ database user must be allowed to create one database per business (see [DEPLOY.m
 
 **Sales & customers.**
 - Sales list and detail, same-day voids, and returns/refunds with restock or damaged handling.
-- Quotations that convert to sales in one click.
+- Quotations that convert to sales in one click, and can be emailed to the customer as a PDF.
+- Invoices and receipts can be emailed as a PDF from the sale page or the POS success screen.
 - Layaway with deposits.
 - Customer accounts:
   - credit ledger (deni), with FIFO payment allocation
+  - payment terms per customer (or a business default); every credit sale gets a due date, and aging, statements
+    and overdue alerts count days past the due date
   - statements as PDF
   - SMS reminders
   - loyalty points
@@ -148,7 +171,8 @@ database user must be allowed to create one database per business (see [DEPLOY.m
 - Goods received notes that update the moving average cost.
 - Supplier bills, payments and aging.
 - Returns to supplier.
-- Reorder suggestions that turn into draft POs.
+- Reorder suggestions that turn into draft POs, using each product's preferred supplier.
+- Supplier ↔ product links (their product code, last cost, lead time, preferred supplier), updated on every GRN.
 - Expenses with receipts, plus recurring expenses such as rent, salaries and LUKU.
 
 **Dashboard & reports.**

@@ -8,6 +8,7 @@ use App\Enums\SaleStatus;
 use App\Exceptions\ApprovalRequiredException;
 use App\Exceptions\BusinessRuleException;
 use App\Models\Customer;
+use App\Models\Product;
 use App\Models\Sale;
 use App\Models\SaleReturn;
 use App\Models\StockMovement;
@@ -95,6 +96,7 @@ class ReturnService
                     throw new BusinessRuleException(__('Only :q of :p can be returned.', ['q' => qty($item->returnableQuantity()), 'p' => $item->name]));
                 }
                 $condition = ($line['condition'] ?? 'restock') === 'damaged' ? 'damaged' : 'restock';
+                app(SerialService::class)->returnItem($item, $qty, $condition, $line['serials'] ?? null);
                 $unitRefund = Money::div($item->netTotal(), $item->quantity, 4);
                 $lineTotal = Money::mul($unitRefund, $qty);
                 $lineTax = Money::mul(Money::div($item->tax_amount, $item->quantity, 4), $qty);
@@ -112,7 +114,16 @@ class ReturnService
                 $item->update(['returned_quantity' => Qty::add($item->returned_quantity, $qty)]);
 
                 $baseQty = Qty::mul($qty, $item->conversion_factor);
-                if ($condition === 'restock') {
+                if ($condition === 'restock' && $item->bundle_components) {
+                    // Bundles go back as their components, in the quantities recorded at sale time.
+                    foreach ($item->bundle_components as $component) {
+                        $product = Product::withTrashed()->find($component['product_id']);
+                        if ($product) {
+                            $this->stock->receive($sale->branch_id, $product, Qty::mul($baseQty, $component['quantity']), MovementType::Return, $return,
+                                $product->cost_price, null, null, $reason);
+                        }
+                    }
+                } elseif ($condition === 'restock') {
                     $batchId = StockMovement::withoutGlobalScopes()->where('reference_type', $sale->getMorphClass())->where('reference_id', $sale->id)
                         ->where('product_id', $item->product_id)->whereNotNull('batch_id')->orderByDesc('id')->value('batch_id');
                     $this->stock->receive($sale->branch_id, $item->product, $baseQty, MovementType::Return, $return,

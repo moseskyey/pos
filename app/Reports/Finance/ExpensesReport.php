@@ -15,6 +15,11 @@ class ExpensesReport extends Report
         return 'expenses';
     }
 
+    public function feature(): ?string
+    {
+        return 'expenses';
+    }
+
     public function title(): string
     {
         return __('Expenses report');

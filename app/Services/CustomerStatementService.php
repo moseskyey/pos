@@ -35,22 +35,46 @@ class CustomerStatementService
     }
 
     /** Outstanding balance split into 0–30 / 31–60 / 61–90 / 90+ day buckets. */
+    /** @return array<string, string> aging bucket => label, by days past the due date */
+    public static function agingBuckets(): array
+    {
+        return [
+            'current' => __('Not yet due'),
+            '1_30' => __('1–30 days overdue'),
+            '31_60' => __('31–60 days overdue'),
+            '61_90' => __('61–90 days overdue'),
+            'over_90' => __('Over 90 days overdue'),
+        ];
+    }
+
+    /**
+     * Unpaid balance split by how long it is past its due date. Sales without
+     * a due date are due 30 days after the sale; opening balances and other
+     * unallocated debt count as the oldest.
+     */
     public function aging(Customer $customer): array
     {
-        $buckets = ['current' => '0.00', '31_60' => '0.00', '61_90' => '0.00', 'over_90' => '0.00'];
+        $buckets = array_map(fn () => '0.00', static::agingBuckets());
         $invoices = Sale::withoutGlobalScopes()->where('customer_id', $customer->id)->where('status', SaleStatus::Completed->value)
-            ->where('balance_due', '>', 0)->get(['created_at', 'balance_due']);
+            ->where('balance_due', '>', 0)->get(['created_at', 'due_date', 'balance_due']);
         foreach ($invoices as $invoice) {
-            $days = $invoice->created_at->diffInDays(now());
-            $key = $days <= 30 ? 'current' : ($days <= 60 ? '31_60' : ($days <= 90 ? '61_90' : 'over_90'));
+            $due = ($invoice->due_date ?? $invoice->created_at->copy()->addDays(30))->copy()->startOfDay();
+            $overdue = $due->lt(today()) ? (int) $due->diffInDays(today()) : 0;
+            $key = match (true) {
+                $overdue === 0 => 'current',
+                $overdue <= 30 => '1_30',
+                $overdue <= 60 => '31_60',
+                $overdue <= 90 => '61_90',
+                default => 'over_90',
+            };
             $buckets[$key] = Money::add($buckets[$key], $invoice->balance_due);
         }
-        // Opening balances and other unallocated debt count as oldest.
         $unallocated = Money::sub($customer->balance, Money::sum($invoices, 'balance_due'));
         if (Money::isPositive($unallocated)) {
             $buckets['over_90'] = Money::add($buckets['over_90'], $unallocated);
         }
         $buckets['total'] = Money::add(...array_values($buckets));
+        $buckets['overdue'] = Money::sub($buckets['total'], $buckets['current']);
 
         return $buckets;
     }

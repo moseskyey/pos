@@ -21,7 +21,9 @@ class QuotationService
     {
         return DB::transaction(function () use ($cart, $user, $branchId, $validUntil, $quotation, $approvals) {
             $customer = ! empty($cart['customer_id']) ? Customer::find($cart['customer_id']) : null;
-            ['lines' => $lines] = $this->sales->priceLines($cart['lines'], $customer, $user, $approvals);
+            // Branch prices apply; automatic promotions are left out because they may have
+            // ended by the time the quote is converted (the till reprices it then).
+            ['lines' => $lines] = $this->sales->priceLines($cart['lines'], $customer, $user, $approvals, $branchId);
             $calcLines = array_map(fn ($l) => Arr::only($l, ['qty', 'unit_price', 'discount_type', 'discount_value', 'tax_rate']), $lines);
             $totals = CartCalculator::fromSettings()->calculate($calcLines, $cart['cart_discount_type'] ?? null, $cart['cart_discount_value'] ?? null);
 

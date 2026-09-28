@@ -6,8 +6,8 @@ use App\Support\Money;
 use App\Support\Qty;
 
 /**
- * Pure cart pricing: line discounts, proportional cart discount, VAT
- * (inclusive or exclusive) and cash rounding. Used by the POS screen for
+ * Pure cart pricing: promotion discounts, manual line discounts, proportional
+ * cart discount, VAT (inclusive or exclusive) and cash rounding. Used by the POS screen for
  * display and by SaleService as the authoritative calculation.
  */
 class CartCalculator
@@ -23,32 +23,41 @@ class CartCalculator
     }
 
     /**
-     * @param  array<int|string, array{qty:mixed, unit_price:mixed, discount_type?:?string, discount_value?:mixed, tax_rate?:mixed}>  $lines
-     * @return array{lines: array, subtotal: string, line_discounts: string, cart_discount: string, discount_total: string, tax_total: string, rounding: string, total: string, items: string}
+     * A line's promo_discount (a fixed amount set by PromotionService) comes off
+     * first; a manual line discount then applies to what is left.
+     *
+     * @param  array<int|string, array{qty:mixed, unit_price:mixed, promo_discount?:mixed, discount_type?:?string, discount_value?:mixed, tax_rate?:mixed}>  $lines
+     * @return array{lines: array, subtotal: string, promo_discounts: string, line_discounts: string, cart_discount: string, discount_total: string, tax_total: string, rounding: string, total: string, items: string}
      */
     public function calculate(array $lines, ?string $cartDiscountType = null, mixed $cartDiscountValue = null): array
     {
         $out = [];
         $subtotal = '0';
         $lineDiscounts = '0';
+        $promoDiscounts = '0';
         $afterLine = '0';
         $items = '0';
 
         foreach ($lines as $key => $line) {
             $qty = Qty::round($line['qty'] ?? 0);
             $gross = Money::mul($qty, $line['unit_price'] ?? 0);
-            $discount = $this->discount($gross, $line['discount_type'] ?? null, $line['discount_value'] ?? null);
-            $lineTotal = Money::sub($gross, $discount);
+            $promo = Money::max('0.00', Money::min(Money::round($line['promo_discount'] ?? 0), $gross));
+            $afterPromo = Money::sub($gross, $promo);
+            $discount = $this->discount($afterPromo, $line['discount_type'] ?? null, $line['discount_value'] ?? null);
+            $lineTotal = Money::sub($afterPromo, $discount);
 
             $out[$key] = [
                 'qty' => $qty,
                 'gross' => $gross,
+                'promo_discount' => $promo,
+                'discount_base' => $afterPromo,
                 'discount_amount' => $discount,
                 'line_total' => $lineTotal,
                 'tax_rate' => Money::round($line['tax_rate'] ?? 0),
             ];
             $subtotal = Money::add($subtotal, $gross);
             $lineDiscounts = Money::add($lineDiscounts, $discount);
+            $promoDiscounts = Money::add($promoDiscounts, $promo);
             $afterLine = Money::add($afterLine, $lineTotal);
             $items = Qty::add($items, $qty);
         }
@@ -81,9 +90,10 @@ class CartCalculator
         return [
             'lines' => $out,
             'subtotal' => $subtotal,
+            'promo_discounts' => Money::round($promoDiscounts),
             'line_discounts' => $lineDiscounts,
             'cart_discount' => $cartDiscount,
-            'discount_total' => Money::add($lineDiscounts, $cartDiscount),
+            'discount_total' => Money::add(Money::add($lineDiscounts, $cartDiscount), $promoDiscounts),
             'tax_total' => $taxTotal,
             'rounding' => Money::sub($rounded, $total),
             'total' => $rounded,

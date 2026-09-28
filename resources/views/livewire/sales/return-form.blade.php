@@ -21,7 +21,20 @@
                             <tbody>
                             @foreach ($lines as $id => $line)
                                 <tr wire:key="rl-{{ $id }}" class="{{ $line['returnable'] <= 0 ? 'opacity-50' : '' }}">
-                                    <td data-label="{{ __('Item') }}" class="fw-semibold">{{ $line['name'] }}</td>
+                                    <td data-label="{{ __('Item') }}">
+                                        <div class="fw-semibold">{{ $line['name'] }}</div>
+                                        @if (! empty($line['serial_options']))
+                                            <div class="small text-body-secondary mt-1">{{ __('Serials being returned:') }}</div>
+                                            <div class="d-flex flex-wrap gap-2">
+                                                @foreach ($line['serial_options'] as $serial)
+                                                    <div class="form-check form-check-inline me-0">
+                                                        <input class="form-check-input" type="checkbox" id="rs-{{ $id }}-{{ $loop->index }}" value="{{ $serial }}" wire:model.live="lines.{{ $id }}.serials">
+                                                        <label class="form-check-label small font-monospace" for="rs-{{ $id }}-{{ $loop->index }}">{{ $serial }}</label>
+                                                    </div>
+                                                @endforeach
+                                            </div>
+                                        @endif
+                                    </td>
                                     <td data-label="{{ __('Returnable') }}" class="text-end">{{ qty($line['returnable']) }} / {{ qty($line['sold']) }} {{ $line['unit'] }}</td>
                                     <td data-label="{{ __('Refund / unit') }}" class="text-end text-money">{{ money($line['unit_refund']) }}</td>
                                     <td data-label="{{ __('Qty') }}"><input type="number" step="0.001" min="0" max="{{ $line['returnable'] }}" class="form-control form-control-sm" wire:model.live.debounce.300ms="lines.{{ $id }}.quantity" @disabled($line['returnable'] <= 0)></td>

@@ -16,7 +16,7 @@ class Customer extends Model
 {
     use HasFactory, LogsActivity, SoftDeletes;
 
-    protected $fillable = ['name', 'phone', 'email', 'tin', 'address', 'type', 'credit_limit', 'opening_balance', 'notes', 'is_active'];
+    protected $fillable = ['name', 'phone', 'email', 'tin', 'address', 'type', 'credit_limit', 'credit_days', 'opening_balance', 'notes', 'is_active'];
 
     protected $attributes = ['type' => 'retail', 'credit_limit' => 0, 'balance' => 0, 'store_credit' => 0, 'loyalty_points' => 0, 'is_active' => true];
 
@@ -28,6 +28,7 @@ class Customer extends Model
             'balance' => 'decimal:2',
             'store_credit' => 'decimal:2',
             'loyalty_points' => 'integer',
+            'credit_days' => 'integer',
             'is_active' => 'boolean',
         ];
     }
@@ -75,5 +76,15 @@ class Customer extends Model
     public function displayPhone(): string
     {
         return $this->phone ? PhoneNumber::display($this->phone) : '';
+    }
+
+    /** Days a credit sale may stay unpaid: the customer's own terms, else the business default. */
+    public function creditDays(): int
+    {
+        if ($this->credit_days !== null && feature('credit_terms')) {
+            return $this->credit_days;
+        }
+
+        return feature('credit_terms') ? (int) setting('credit.default_days', 30) : 30;
     }
 }
